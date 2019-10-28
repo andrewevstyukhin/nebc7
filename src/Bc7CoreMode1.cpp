@@ -17,6 +17,11 @@ namespace Mode1 {
 	static std::atomic_int gComputeSubsetError3, gComputeSubsetError3GR, gComputeSubsetError3GB;
 #endif
 
+	static INLINED int Max(int x, int y) noexcept
+	{
+		return (x > y) ? x : y;
+	}
+
 	void DecompressBlock(uint8_t input[16], Cell& output) noexcept
 	{
 		uint64_t data0 = *(const uint64_t*)&input[0];
@@ -463,8 +468,7 @@ namespace Mode1 {
 	void CompressBlockFull(Cell& input) noexcept
 	{
 		Node order[64];
-		Estimation estimations1[64];
-		Estimation estimations2[64];
+		int lines1[64];
 		int lines2[64];
 
 		size_t partitionsCount = 0;
@@ -476,15 +480,16 @@ namespace Mode1 {
 			Area& area1 = GetArea(input.Area12[partitionIndex], input.LazyArea12[partitionIndex], input, gTableSelection12[partitionIndex]);
 
 			const int water1 = input.Error.Total - input.OpaqueAlphaError;
-			int line1 = EstimateLevels(area1, water1, estimations1[partitionIndex]);
+			int line1 = AreaGetBestPca3(area1);
 			if (line1 < water1)
 			{
 				Area& area2 = GetArea(input.Area22[partitionIndex], input.LazyArea22[partitionIndex], input, gTableSelection22[partitionIndex]);
 
 				const int water2 = water1 - line1;
-				int line2 = EstimateLevels(area2, water2, estimations2[partitionIndex]);
+				int line2 = AreaGetBestPca3(area2);
 				if (line2 < water2)
 				{
+					lines1[partitionIndex] = line1;
 					lines2[partitionIndex] = line2;
 
 					order[partitionsCount++].Init(input.OpaqueAlphaError + line1 + line2, static_cast<int>(partitionIndex));
@@ -510,35 +515,49 @@ namespace Mode1 {
 				__m128i mc1 = _mm_setzero_si128();
 
 				Area& area1 = GetArea(input.Area12[partitionIndex], input.LazyArea12[partitionIndex], input, gTableSelection12[partitionIndex]);
+				Area& area2 = GetArea(input.Area22[partitionIndex], input.LazyArea22[partitionIndex], input, gTableSelection22[partitionIndex]);
 
-				const int water1 = input.Error.Total - input.OpaqueAlphaError - lines2[partitionIndex];
-				Subsets subsets1;
-				if (subsets1.InitLevels(area1, water1, estimations1[partitionIndex]))
+				int line1 = lines1[partitionIndex];
+				int line2 = lines2[partitionIndex];
+
+				Estimation estimations1;
+				int water1 = input.Error.Total - input.OpaqueAlphaError - line2;
+				line1 = Max(line1, EstimateLevels(area1, water1, estimations1));
+				if (line1 < water1)
 				{
-					int error = subsets1.TryVariants(area1, mc0, water1);
-					if (error < water1)
+					Estimation estimations2;
+					int water2 = water1 - line1;
+					line2 = Max(line2, EstimateLevels(area2, water2, estimations2));
+					if (line2 < water2)
 					{
-						error += input.OpaqueAlphaError;
-
-						Area& area2 = GetArea(input.Area22[partitionIndex], input.LazyArea22[partitionIndex], input, gTableSelection22[partitionIndex]);
-
-						const int water2 = input.Error.Total - error;
-						Subsets subsets2;
-						if (subsets2.InitLevels(area2, water2, estimations2[partitionIndex]))
+						water1 = input.Error.Total - input.OpaqueAlphaError - line2;
+						Subsets subsets1;
+						if (subsets1.InitLevels(area1, water1, estimations1))
 						{
-							error += subsets2.TryVariants(area2, mc1, water2);
-
-							if (input.Error.Total > error)
+							int error = subsets1.TryVariants(area1, mc0, water1);
+							if (error < water1)
 							{
-								input.Error.Total = error;
+								error += input.OpaqueAlphaError;
 
-								input.BestColor0 = mc0;
-								input.BestColor1 = mc1;
-								input.BestParameter = partitionIndex;
-								input.BestMode = 1;
+								water2 = input.Error.Total - error;
+								Subsets subsets2;
+								if (subsets2.InitLevels(area2, water2, estimations2))
+								{
+									error += subsets2.TryVariants(area2, mc1, water2);
 
-								if (error <= input.OpaqueAlphaError)
-									return;
+									if (input.Error.Total > error)
+									{
+										input.Error.Total = error;
+
+										input.BestColor0 = mc0;
+										input.BestColor1 = mc1;
+										input.BestParameter = partitionIndex;
+										input.BestMode = 1;
+
+										if (error <= input.OpaqueAlphaError)
+											return;
+									}
+								}
 							}
 						}
 					}

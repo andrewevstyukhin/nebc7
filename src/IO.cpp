@@ -90,7 +90,7 @@ void WriteImage(const char* dst_name, const uint8_t* pixels, int w, int h, bool 
 				Gdiplus::ImageCodecInfo* pArray = (Gdiplus::ImageCodecInfo*)new uint8_t[size];
 				Gdiplus::GetImageEncoders(num, size, pArray);
 
-				for (UINT i = 0; i < num; ++i)
+				for (UINT i = 0; i < num; i++)
 				{
 					if (pArray[i].FormatID == Gdiplus::ImageFormatPNG)
 					{

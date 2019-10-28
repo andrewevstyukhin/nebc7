@@ -43,7 +43,9 @@ struct alignas(64) Area
 
 	bool IsOpaque;
 
-	int ZeroIndex;
+	uint8_t ZeroIndex;
+
+	int BestPca3;
 
 	__m128i MinMax_U16;
 	__m128i Bounds_U16;
@@ -106,6 +108,8 @@ struct alignas(64) Modulations
 };
 
 Area& GetArea(Area& area, bool& lazy, const Cell& cell, const uint64_t indices) noexcept;
+
+int AreaGetBestPca3(Area& area) noexcept;
 
 void AreaReduceTable2(const Area& area, __m128i& mc, uint64_t& indices) noexcept;
 void AreaReduceTable3(const Area& area, __m128i& mc, uint64_t& indices) noexcept;

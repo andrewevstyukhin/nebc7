@@ -2,9 +2,9 @@
 #include "pch.h"
 #include "Bc7Core.h"
 #include "Bc7Tables.h"
+#include "Bc7Pca.h"
 
 #include "SnippetInsertRemoveZeroBit.h"
-#include "SnippetHorizontalSum4.h"
 #include "SnippetLevelsBuffer.h"
 
 // https://docs.microsoft.com/en-us/windows/desktop/direct3d11/bc7-format-mode-reference#mode-6
@@ -681,14 +681,11 @@ namespace Mode6 {
 
 	void CompressBlock(Cell& input) noexcept
 	{
+		Area& area = input.Area1;
+
 		__m128i mc = input.BestColor0;
 
-		int error = 0;
-		{
-			Area& area = input.Area1;
-
-			error += CompressSubset(area, mc, input.Error.Total - error);
-		}
+		int error = CompressSubset(area, mc, input.Error.Total);
 
 		if (input.Error.Total > error)
 		{
@@ -699,27 +696,42 @@ namespace Mode6 {
 		}
 	}
 
+	static INLINED int EstimateBest(Area& area) noexcept
+	{
+#if defined(OPTION_PCA)
+		if (area.IsOpaque)
+		{
+			return PrincipalComponentAnalysis3(area);
+		}
+
+		return PrincipalComponentAnalysis4(area);
+#else
+		(void)area;
+		return 0;
+#endif
+	}
+
 	void CompressBlockFull(Cell& input) noexcept
 	{
 		if (input.PersonalMode == 6)
 			return;
 
-		__m128i mc = _mm_setzero_si128();
+		Area& area = input.Area1;
 
-		int error = 0;
-		if (error < input.Error.Total)
+		int line = EstimateBest(area);
+		if (line < input.Error.Total)
 		{
-			Area& area = input.Area1;
+			__m128i mc = _mm_setzero_si128();
 
-			error += CompressSubset(area, mc, input.Error.Total - error);
-		}
+			int error = CompressSubset(area, mc, input.Error.Total);
 
-		if (input.Error.Total > error)
-		{
-			input.Error.Total = error;
+			if (input.Error.Total > error)
+			{
+				input.Error.Total = error;
 
-			input.BestColor0 = mc;
-			input.BestMode = 6;
+				input.BestColor0 = mc;
+				input.BestMode = 6;
+			}
 		}
 	}
 

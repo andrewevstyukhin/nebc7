@@ -78,7 +78,7 @@ public:
 		if (!top)
 			return;
 
-		int d = (int)sqrt(top);
+		int d = _mm_cvtsi128_si32(_mm_cvttps_epi32(_mm_sqrt_ss(_mm_cvtepi32_ps(_mm_cvtsi32_si128(top)))));
 		d -= int(d * d >= top);
 
 		constexpr int tailmask = (1 << (8 - bits)) - 1;

@@ -1,6 +1,8 @@
 
 //#define OPTION_AVX512
 #define OPTION_AVX2
+//#define OPTION_FMA
+//#define OPTION_PCA
 //#define OPTION_COUNTERS
 //#define OPTION_LINEAR
 #define OPTION_SELFCHECK
@@ -21,6 +23,10 @@ enum { kColor = kGreen + kRed + kBlue };
 
 #if defined(OPTION_AVX512) && !defined(OPTION_AVX2)
 #define OPTION_AVX2
+#endif
+
+#if defined(OPTION_AVX2) && !defined(OPTION_FMA) // Except Via Cores
+#define OPTION_FMA
 #endif
 
 #if defined(OPTION_AVX2) && !defined(__AVX2__)

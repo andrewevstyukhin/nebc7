@@ -4,8 +4,6 @@
 #include "Bc7Core.h"
 #include "Bc7Tables.h"
 
-#include "SnippetHorizontalSum4.h"
-
 static INLINED int ComputeOpaqueSubsetError3(const Area& area, __m128i mc, const __m128i mwater) noexcept
 {
 	__m128i merrorBlock = _mm_setzero_si128();

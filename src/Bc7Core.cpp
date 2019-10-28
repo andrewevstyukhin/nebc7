@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "Bc7Core.h"
 #include "Bc7Tables.h"
+#include "Bc7Pca.h"
 #include "Metrics.h"
 
 #if defined(OPTION_COUNTERS)
@@ -142,7 +143,7 @@ static NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size
 
 	area.Count = static_cast<uint32_t>(count);
 
-	area.ZeroIndex = static_cast<int>(indices & 0xF);
+	area.ZeroIndex = static_cast<uint8_t>(indices & 0xF);
 
 	{
 		uint8_t TransparentIndices[16];
@@ -201,6 +202,8 @@ static NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size
 	// Flags
 
 	area.IsOpaque = ((_mm_extract_epi16(mbounds, 0) & _mm_extract_epi16(mbounds, 1)) == 255);
+
+	area.BestPca3 = -1;
 
 	// Orient channels
 
@@ -302,6 +305,23 @@ Area& GetArea(Area& area, bool& lazy, const Cell& cell, const uint64_t indices) 
 	}
 
 	return area;
+}
+
+int AreaGetBestPca3(Area& area) noexcept
+{
+#if defined(OPTION_PCA)
+	int best = area.BestPca3;
+	if (best < 0)
+	{
+		best = PrincipalComponentAnalysis3(area);
+		area.BestPca3 = best;
+	}
+#else
+	(void)area;
+	int best = 0;
+#endif
+
+	return best;
 }
 
 void AreaReduceTable2(const Area& area, __m128i& mc, uint64_t& indices) noexcept

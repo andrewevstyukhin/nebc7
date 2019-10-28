@@ -68,11 +68,12 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <BufferSecurityCheck>false</BufferSecurityCheck>
-      <FloatingPointModel>Fast</FloatingPointModel>
+      <FloatingPointModel>Precise</FloatingPointModel>
       <CreateHotpatchableImage>false</CreateHotpatchableImage>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <CallingConvention>VectorCall</CallingConvention>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -99,11 +100,12 @@
       <AssemblerOutput>AssemblyAndMachineCode</AssemblerOutput>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <BufferSecurityCheck>false</BufferSecurityCheck>
-      <FloatingPointModel>Fast</FloatingPointModel>
+      <FloatingPointModel>Precise</FloatingPointModel>
       <CreateHotpatchableImage>false</CreateHotpatchableImage>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
       <CallingConvention>VectorCall</CallingConvention>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -116,6 +118,7 @@
   <ItemGroup>
     <ClInclude Include="Bc7Core.h" />
     <ClInclude Include="Bc7Mode.h" />
+    <ClInclude Include="Bc7Pca.h" />
     <ClInclude Include="Bc7Tables.h" />
     <ClInclude Include="IO.h" />
     <ClInclude Include="Metrics.h" />
@@ -140,6 +143,7 @@
     <ClCompile Include="Bc7CoreMode5.cpp" />
     <ClCompile Include="Bc7CoreMode6.cpp" />
     <ClCompile Include="Bc7CoreMode7.cpp" />
+    <ClCompile Include="Bc7PcaEigen.cpp" />
     <ClCompile Include="Bc7Tables.cpp" />
     <ClCompile Include="IO.cpp" />
     <ClCompile Include="Metrics.cpp" />

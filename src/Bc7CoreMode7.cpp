@@ -2,10 +2,10 @@
 #include "pch.h"
 #include "Bc7Core.h"
 #include "Bc7Tables.h"
+#include "Bc7Pca.h"
 
 #include "SnippetDecompressIndexedSubset.h"
 #include "SnippetInsertRemoveZeroBit.h"
-#include "SnippetHorizontalSum4.h"
 #include "SnippetLevelsMinimum.h"
 #include "SnippetLevelsBuffer.h"
 
@@ -16,6 +16,11 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 	static std::atomic_int gComputeSubsetError2, gComputeSubsetError2AG, gComputeSubsetError2AR, gComputeSubsetError2AGR, gComputeSubsetError2AGB;
 #endif
+
+	static INLINED int Max(int x, int y) noexcept
+	{
+		return (x > y) ? x : y;
+	}
 
 	void DecompressBlock(uint8_t input[16], Cell& output) noexcept
 	{
@@ -847,6 +852,21 @@ namespace Mode7 {
 		}
 	}
 
+	static INLINED int EstimateBest(Area& area) noexcept
+	{
+#if defined(OPTION_PCA)
+		if (area.IsOpaque)
+		{
+			return AreaGetBestPca3(area);
+		}
+
+		return PrincipalComponentAnalysis4(area);
+#else
+		(void)area;
+		return 0;
+#endif
+	}
+
 	static INLINED int EstimateLevels(const Area& area, const int water, Estimation& estimation) noexcept
 	{
 		int error = 0;
@@ -905,8 +925,6 @@ namespace Mode7 {
 	void CompressBlockFull(Cell& input) noexcept
 	{
 		Node order[64];
-		Estimation estimations1[64];
-		Estimation estimations2[64];
 		int lines1[64];
 		int lines2[64];
 
@@ -917,40 +935,21 @@ namespace Mode7 {
 				continue;
 
 			Area& area1 = GetArea(input.Area12[partitionIndex], input.LazyArea12[partitionIndex], input, gTableSelection12[partitionIndex]);
-			Area& area2 = GetArea(input.Area22[partitionIndex], input.LazyArea22[partitionIndex], input, gTableSelection22[partitionIndex]);
 
-			if (area1.Active >= area2.Active)
+			const int water1 = input.Error.Total;
+			int line1 = EstimateBest(area1);
+			if (line1 < water1)
 			{
-				const int water1 = input.Error.Total;
-				int line1 = EstimateLevels(area1, water1, estimations1[partitionIndex]);
-				if (line1 < water1)
-				{
-					const int water2 = water1 - line1;
-					int line2 = EstimateLevels(area2, water2, estimations2[partitionIndex]);
-					if (line2 < water2)
-					{
-						lines1[partitionIndex] = line1;
-						lines2[partitionIndex] = line2;
+				Area& area2 = GetArea(input.Area22[partitionIndex], input.LazyArea22[partitionIndex], input, gTableSelection22[partitionIndex]);
 
-						order[partitionsCount++].Init(line1 + line2, static_cast<int>(partitionIndex));
-					}
-				}
-			}
-			else
-			{
-				const int water2 = input.Error.Total;
-				int line2 = EstimateLevels(area2, water2, estimations2[partitionIndex]);
+				const int water2 = water1 - line1;
+				int line2 = EstimateBest(area2);
 				if (line2 < water2)
 				{
-					const int water1 = water2 - line2;
-					int line1 = EstimateLevels(area1, water1, estimations1[partitionIndex]);
-					if (line1 < water1)
-					{
-						lines1[partitionIndex] = line1;
-						lines2[partitionIndex] = line2;
+					lines1[partitionIndex] = line1;
+					lines2[partitionIndex] = line2;
 
-						order[partitionsCount++].Init(line1 + line2, static_cast<int>(partitionIndex));
-					}
+					order[partitionsCount++].Init(line1 + line2, static_cast<int>(partitionIndex));
 				}
 			}
 		}
@@ -975,63 +974,44 @@ namespace Mode7 {
 				Area& area1 = GetArea(input.Area12[partitionIndex], input.LazyArea12[partitionIndex], input, gTableSelection12[partitionIndex]);
 				Area& area2 = GetArea(input.Area22[partitionIndex], input.LazyArea22[partitionIndex], input, gTableSelection22[partitionIndex]);
 
-				if (area1.Active >= area2.Active)
+				int line1 = lines1[partitionIndex];
+				int line2 = lines2[partitionIndex];
+
+				Estimation estimations1;
+				int water1 = input.Error.Total - line2;
+				line1 = Max(line1, EstimateLevels(area1, water1, estimations1));
+				if (line1 < water1)
 				{
-					const int water1 = input.Error.Total - lines2[partitionIndex];
-					Subsets subsets1;
-					if (subsets1.InitLevels(area1, water1, estimations1[partitionIndex]))
+					Estimation estimations2;
+					int water2 = water1 - line1;
+					line2 = Max(line2, EstimateLevels(area2, water2, estimations2));
+					if (line2 < water2)
 					{
-						int error = subsets1.TryVariants(area1, mc0, water1);
-						if (error < water1)
+						water1 = input.Error.Total - line2;
+						Subsets subsets1;
+						if (subsets1.InitLevels(area1, water1, estimations1))
 						{
-							const int water2 = input.Error.Total - error;
-							Subsets subsets2;
-							if (subsets2.InitLevels(area2, water2, estimations2[partitionIndex]))
+							int error = subsets1.TryVariants(area1, mc0, water1);
+							if (error < water1)
 							{
-								error += subsets2.TryVariants(area2, mc1, water2);
-
-								if (input.Error.Total > error)
+								water2 = input.Error.Total - error;
+								Subsets subsets2;
+								if (subsets2.InitLevels(area2, water2, estimations2))
 								{
-									input.Error.Total = error;
+									error += subsets2.TryVariants(area2, mc1, water2);
 
-									input.BestColor0 = mc0;
-									input.BestColor1 = mc1;
-									input.BestParameter = partitionIndex;
-									input.BestMode = 7;
+									if (input.Error.Total > error)
+									{
+										input.Error.Total = error;
 
-									if (error <= 0)
-										return;
-								}
-							}
-						}
-					}
-				}
-				else
-				{
-					const int water2 = input.Error.Total - lines1[partitionIndex];
-					Subsets subsets2;
-					if (subsets2.InitLevels(area2, water2, estimations2[partitionIndex]))
-					{
-						int error = subsets2.TryVariants(area2, mc1, water2);
-						if (error < water2)
-						{
-							const int water1 = input.Error.Total - error;
-							Subsets subsets1;
-							if (subsets1.InitLevels(area1, water1, estimations1[partitionIndex]))
-							{
-								error += subsets1.TryVariants(area1, mc0, water1);
+										input.BestColor0 = mc0;
+										input.BestColor1 = mc1;
+										input.BestParameter = partitionIndex;
+										input.BestMode = 7;
 
-								if (input.Error.Total > error)
-								{
-									input.Error.Total = error;
-
-									input.BestColor0 = mc0;
-									input.BestColor1 = mc1;
-									input.BestParameter = partitionIndex;
-									input.BestMode = 7;
-
-									if (error <= 0)
-										return;
+										if (error <= 0)
+											return;
+									}
 								}
 							}
 						}

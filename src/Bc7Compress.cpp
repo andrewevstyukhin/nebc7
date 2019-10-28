@@ -4,6 +4,7 @@
 #include "pch.h"
 #include "Bc7Core.h"
 #include "Bc7Tables.h"
+#include "Bc7Pca.h"
 #include "IO.h"
 #include "Worker.h"
 
@@ -305,6 +306,10 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 	InitShrinked();
 	InitSelection();
 	InitLevels();
+
+#if defined(OPTION_PCA)
+	InitPCA();
+#endif
 
 	memcpy(dst_texture_bgra, src_texture_bgra, src_texture_h * src_texture_stride);
 

@@ -38,3 +38,6 @@
 # Data files
 /src/*.png
 /src/*.ktx
+
+# Eigen
+/src/Eigen/
