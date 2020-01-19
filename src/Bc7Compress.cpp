@@ -112,6 +112,128 @@ static void PackTexture(uint8_t* dst_bc7, uint8_t* src_bgra, uint8_t* mask_agrb,
 	}
 }
 
+static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
+{
+	for (int i = 0; i < size; i += 16)
+	{
+		uint64_t data0 = *(const uint64_t*)&dst_bc7[i + 0];
+		uint64_t data1 = *(const uint64_t*)&dst_bc7[i + 8];
+
+		if (data0 & 0xF)
+		{
+			if (data0 & 3)
+			{
+				if (data0 & 1)
+				{
+					data0 &= (1u << (4 + 1)) - 1u;
+
+					data0 |=
+						(0xFui64 << 29) + // G0
+						(0xFui64 << 13); // R2
+
+					data1 = 
+						(0xFui64 << 5); // B4
+				}
+				else
+				{
+					data0 &= (1u << (6 + 2)) - 1u;
+
+					data0 |=
+						(0x3Fui64 << 32) + // G0
+						(0x3Fui64 << 20); // R2
+
+					data1 = 0;
+				}
+			}
+			else
+			{
+				if (data0 & 4)
+				{
+					data0 &= (1u << (6 + 3)) - 1u;
+
+					data0 |=
+						(0x1Fui64 << 39) + // G0
+						(0x1Fui64 << 19); // R2
+
+					data1 =
+						(0x1Fui64 << 25); // B4
+				}
+				else
+				{
+					data0 &= (1u << (6 + 4)) - 1u;
+
+					data0 |=
+						(0x7Fui64 << 38) + // G0
+						(0x7Fui64 << 24); // R2
+
+					data1 = 0;
+				}
+			}
+		}
+		else if (data0 & 0xF0)
+		{
+			if (data0 & 0x30)
+			{
+				if (data0 & 0x10)
+				{
+					data0 &= (1u << 5) - 1u;
+
+					data0 |=
+						(0x1Fui64 << 18) + // G0
+						(0x1Fui64 << 8) + // R0
+						(0x3Fui64 << 38); // A0
+
+					data1 = 0;
+				}
+				else
+				{
+					data0 &= (1u << 6) - 1u;
+
+					data0 |=
+						(0x7Fui64 << 22) + // G0
+						(0x7Fui64 << 8) + // R0
+						(0xFFui64 << 50); // A0
+
+					data1 = 0;
+				}
+			}
+			else
+			{
+				if (data0 & 0x40)
+				{
+					if ((data0 == 0x40) && (data1 == 0))
+						continue;
+
+					data0 &= (1u << 7) - 1u;
+
+					data0 |=
+						(0x40ui64 << 21) + // G0
+						(0x40ui64 << 7) + // R0
+						(0x40ui64 << 35) + // B0
+						(0x7Fui64 << 49); // A0
+
+					data1 = 0;
+				}
+				else
+				{
+					data0 &= (1u << (6 + 8)) - 1u;
+
+					data0 |=
+						(0x1Fui64 << 34) + // G0
+						(0x1Fui64 << 24); // R2
+
+					data1 =
+						(0x1Fui64 << 10) + // A0
+						(0x1Fui64 << 20); // A2
+				}
+			}
+		}
+
+		*(uint64_t*)&dst_bc7[i + 0] = data0;
+		*(uint64_t*)&dst_bc7[i + 8] = data1;
+	}
+}
+
 int Bc7MainWithArgs(const std::vector<std::string>& args)
 {
 	gDoDraft = true;
@@ -126,6 +248,7 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 	const char* src_name = nullptr;
 	const char* dst_name = nullptr;
 	const char* result_name = nullptr;
+	const char* partitions_name = nullptr;
 
 	for (int i = 0, n = (int)args.size(); i < n; i++)
 	{
@@ -193,6 +316,14 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 				if (++i < n)
 				{
 					result_name = args[i].c_str();
+				}
+				continue;
+			}
+			else if (strcmp(arg, "/map") == 0)
+			{
+				if (++i < n)
+				{
+					partitions_name = args[i].c_str();
 				}
 				continue;
 			}
@@ -373,6 +504,15 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 
 		PackTexture(dst_bc7, dst_texture_bgra, mask_agrb, src_texture_stride, src_texture_w, src_texture_h, &DecompressKernel, 16, mse_alpha, mse_color, ssim);
 
+		if ((partitions_name != nullptr) && partitions_name[0])
+		{
+			VisualizePartitionsGRB(dst_bc7, Size);
+
+			PackTexture(dst_bc7, mask_agrb, dst_texture_bgra, src_texture_stride, src_texture_w, src_texture_h, &DecompressKernel, 16, mse_alpha, mse_color, ssim);
+
+			WriteImage(partitions_name, mask_agrb, src_texture_w, src_texture_h, flip);
+		}
+
 		delete[] dst_bc7;
 		delete[] mask_agrb;
 	}
@@ -394,8 +534,8 @@ int __cdecl main(int argc, char* argv[])
 {
 	if (argc < 2)
 	{
-		PRINTF("Usage: Bc7Compress [/fast | /normal | /slow] [/retina] [/nomask] [/noflip] src");
-		PRINTF("                   [dst.ktx] [/debug result.png]");
+		PRINTF("Usage: Bc7Compress [/fast | /normal | /slow | /draft] [/retina] [/nomask] [/noflip] src");
+		PRINTF("                   [dst.ktx] [/debug result.png] [/map partitions.png]");
 		return 1;
 	}
 
