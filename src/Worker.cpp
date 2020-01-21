@@ -1,6 +1,7 @@
 
 #include "pch.h"
 #include "Worker.h"
+#include "Metrics.h"
 
 #if defined(WIN32)
 #include <windows.h>
@@ -242,7 +243,7 @@ public:
 
 			if (_Running <= 0)
 				break;
-	}
+		}
 #endif
 
 		pErrorAlpha = _errorAlpha;
@@ -388,4 +389,122 @@ void ProcessTexture(uint8_t* dst, uint8_t* src_bgra, uint8_t* mask_agrb, int str
 	worker.Add(job);
 
 	worker.Run(blockKernel, stride, pErrorAlpha, pErrorColor, pssim);
+}
+
+void ShowBadBlocks(const uint8_t* src_bgra, const uint8_t* dst_bgra, uint8_t* mask_agrb, int stride, int src_w, int src_h) noexcept
+{
+	Cell input;
+	Cell output;
+
+	for (int y = 0; y < src_h; y += 4)
+	{
+		const uint8_t* src = src_bgra + y * stride;
+		const uint8_t* dst = dst_bgra + y * stride;
+		uint8_t* mask = mask_agrb + y * stride;
+
+		for (int x = 0; x < src_w; x += 4)
+		{
+			{
+				const uint8_t* p = src;
+
+				input.ImageRows_U8[0] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+
+				p += stride;
+
+				input.ImageRows_U8[1] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+
+				p += stride;
+
+				input.ImageRows_U8[2] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+
+				p += stride;
+
+				input.ImageRows_U8[3] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+			}
+
+			{
+				const uint8_t* p = mask;
+
+				input.MaskRows_S8[0] = _mm_loadu_si128((const __m128i*)p);
+
+				p += stride;
+
+				input.MaskRows_S8[1] = _mm_loadu_si128((const __m128i*)p);
+
+				p += stride;
+
+				input.MaskRows_S8[2] = _mm_loadu_si128((const __m128i*)p);
+
+				p += stride;
+
+				input.MaskRows_S8[3] = _mm_loadu_si128((const __m128i*)p);
+			}
+
+			{
+				const uint8_t* p = dst;
+
+				output.ImageRows_U8[0] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+
+				p += stride;
+
+				output.ImageRows_U8[1] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+
+				p += stride;
+
+				output.ImageRows_U8[2] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+
+				p += stride;
+
+				output.ImageRows_U8[3] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+			}
+
+			bool bad = DetectGlitches(input, output);
+			if (bad)
+			{
+				const uint8_t* r = src;
+				uint8_t* p = mask;
+
+				_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((const __m128i*)r));
+
+				r += stride;
+				p += stride;
+
+				_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((const __m128i*)r));
+
+				r += stride;
+				p += stride;
+
+				_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((const __m128i*)r));
+
+				r += stride;
+				p += stride;
+
+				_mm_storeu_si128((__m128i*)p, _mm_loadu_si128((const __m128i*)r));
+			}
+			else
+			{
+				__m128i mc = _mm_setzero_si128();
+
+				uint8_t* p = mask;
+
+				_mm_storeu_si128((__m128i*)p, mc);
+
+				p += stride;
+
+				_mm_storeu_si128((__m128i*)p, mc);
+
+				p += stride;
+
+				_mm_storeu_si128((__m128i*)p, mc);
+
+				p += stride;
+
+				_mm_storeu_si128((__m128i*)p, mc);
+			}
+
+			src += 16;
+			dst += 16;
+			mask += 16;
+		}
+	}
 }

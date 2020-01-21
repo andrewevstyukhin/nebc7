@@ -129,8 +129,6 @@ BlockSSIM CompareBlocksSSIM(const Cell& cell1, const Cell& cell2) noexcept
 	return BlockSSIM(_mm_cvtsd_f64(mssim_ga), ssim * (1.0 / kColor));
 }
 
-#if defined(OPTION_COUNTERS)
-
 bool DetectGlitches(const Cell& input, const Cell& output) noexcept
 {
 	const __m128i msign = _mm_set1_epi8(-0x80);
@@ -169,5 +167,3 @@ bool DetectGlitches(const Cell& input, const Cell& output) noexcept
 
 	return _mm_movemask_epi8(me) != 0;
 }
-
-#endif

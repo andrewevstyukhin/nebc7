@@ -93,7 +93,7 @@ static void PackTexture(uint8_t* dst_bc7, uint8_t* src_bgra, uint8_t* mask_agrb,
 
 	auto finish = std::chrono::high_resolution_clock::now();
 
-	if (blockKernel != DecompressKernel)
+	if (blockKernel == CompressKernel)
 	{
 		int pixels = src_h * src_w;
 
@@ -104,10 +104,7 @@ static void PackTexture(uint8_t* dst_bc7, uint8_t* src_bgra, uint8_t* mask_agrb,
 		PRINTF("    Compressed %d blocks, elapsed %i ms, throughput %d.%03d Mpx/s", pixels >> 4, span, kpx_s / 1000, kpx_s % 1000);
 
 #if defined(OPTION_COUNTERS)
-		if (blockKernel == CompressKernel)
-		{
-			CompressStatistics();
-		}
+		CompressStatistics();
 #endif
 	}
 }
@@ -249,6 +246,7 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 	const char* dst_name = nullptr;
 	const char* result_name = nullptr;
 	const char* partitions_name = nullptr;
+	const char* bad_name = nullptr;
 
 	for (int i = 0, n = (int)args.size(); i < n; i++)
 	{
@@ -324,6 +322,14 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 				if (++i < n)
 				{
 					partitions_name = args[i].c_str();
+				}
+				continue;
+			}
+			else if (strcmp(arg, "/bad") == 0)
+			{
+				if (++i < n)
+				{
+					bad_name = args[i].c_str();
 				}
 				continue;
 			}
@@ -504,6 +510,13 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 
 		PackTexture(dst_bc7, dst_texture_bgra, mask_agrb, src_texture_stride, src_texture_w, src_texture_h, &DecompressKernel, 16, mse_alpha, mse_color, ssim);
 
+		if ((bad_name != nullptr) && bad_name[0])
+		{
+			ShowBadBlocks(src_texture_bgra, dst_texture_bgra, mask_agrb, src_texture_stride, src_texture_w, src_texture_h);
+
+			WriteImage(bad_name, mask_agrb, src_texture_w, src_texture_h, flip);
+		}
+
 		if ((partitions_name != nullptr) && partitions_name[0])
 		{
 			VisualizePartitionsGRB(dst_bc7, Size);
@@ -535,7 +548,7 @@ int __cdecl main(int argc, char* argv[])
 	if (argc < 2)
 	{
 		PRINTF("Usage: Bc7Compress [/fast | /normal | /slow | /draft] [/retina] [/nomask] [/noflip] src");
-		PRINTF("                   [dst.ktx] [/debug result.png] [/map partitions.png]");
+		PRINTF("                   [dst.ktx] [/debug result.png] [/map partitions.png] [/bad bad.png]");
 		return 1;
 	}
 

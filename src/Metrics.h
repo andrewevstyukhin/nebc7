@@ -49,8 +49,4 @@ BlockError CompareBlocks(const Cell& cell1, const Cell& cell2) noexcept;
 
 BlockSSIM CompareBlocksSSIM(const Cell& cell1, const Cell& cell2) noexcept;
 
-#if defined(OPTION_COUNTERS)
-
 bool DetectGlitches(const Cell& input, const Cell& output) noexcept;
-
-#endif
