@@ -6,6 +6,7 @@
 #include "Metrics.h"
 
 #if defined(OPTION_COUNTERS)
+#include "SnippetLevelsMinimum.h"
 #include "SnippetLevelsBuffer.h"
 #endif
 
@@ -388,10 +389,10 @@ NOTINLINED Node* radix_sort(Node* input, Node* work, size_t N) noexcept
 	Node* A = input;
 	Node* B = work;
 
-	int any_error = 0;
+	uint32_t any_error = 0;
 	for (size_t i = 0; i < N; i++)
 	{
-		any_error |= A[i].Error;
+		any_error |= (uint32_t)A[i].Error;
 	}
 
 	for (size_t shift = 0; shift < 32; shift += radix)
@@ -426,6 +427,60 @@ NOTINLINED Node* radix_sort(Node* input, Node* work, size_t N) noexcept
 		}
 
 		Node* C = A; A = B; B = C;
+	}
+
+	return A;
+}
+
+NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) noexcept
+{
+	constexpr size_t radix = 6;
+	constexpr size_t bucketCount = 1 << radix;
+	constexpr size_t bucketMask = bucketCount - 1;
+
+	alignas(32) uint32_t counts[bucketCount];
+
+	NodeShort* A = input;
+	NodeShort* B = work;
+
+	uint32_t any_error = 0;
+	for (size_t i = 0; i < N; i++)
+	{
+		any_error |= A[i].ColorError;
+	}
+
+	for (size_t shift = 16; shift < 32; shift += radix)
+	{
+		if (((any_error >> shift) & bucketMask) == 0)
+			continue;
+
+		for (size_t i = 0; i < bucketCount; i++)
+		{
+			counts[i] = 0;
+		}
+
+		for (size_t i = 0; i < N; i++)
+		{
+			size_t value = A[i].ColorError;
+			counts[(value >> shift) & bucketMask]++;
+		}
+
+		uint32_t total = 0;
+		for (size_t i = 0; i < bucketCount; i++)
+		{
+			uint32_t oldCount = counts[i];
+			counts[i] = total;
+			total += oldCount;
+		}
+
+		for (size_t i = 0; i < N; i++)
+		{
+			NodeShort val = A[i];
+			uint32_t p = counts[((size_t)val.ColorError >> shift) & bucketMask]++;
+			B[p] = val;
+		}
+
+		NodeShort* C = A; A = B; B = C;
 	}
 
 	return A;
@@ -1050,6 +1105,8 @@ void CompressStatistics()
 	Mode5::PrintCounters();
 	Mode7::PrintCounters();
 
+	PRINTF("[Minimum]\tFull = %i, Short = %i",
+		gMinimumFull.load(), gMinimumShort.load());
 	PRINTF("[Estimate]\tFull = %i, Short = %i",
 		gEstimateFull.load(), gEstimateShort.load());
 

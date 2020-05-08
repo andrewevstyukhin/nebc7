@@ -11,6 +11,8 @@
 
 namespace Mode6 {
 
+	constexpr int LevelsCapacity = 20;
+
 #if defined(OPTION_COUNTERS)
 	static std::atomic_int gComputeSubsetError4, gComputeSubsetError4AG, gComputeSubsetError4AR, gComputeSubsetError4AGR, gComputeSubsetError4AGB;
 #endif
@@ -104,7 +106,8 @@ namespace Mode6 {
 		if (error)
 		{
 			error *= kAlpha;
-			error *= gTableLevels4_U16[0][alpha];
+			int v = gTableDeltas4_Value8[0][alpha];
+			error *= v * v;
 		}
 
 		return error;
@@ -454,7 +457,7 @@ namespace Mode6 {
 	class Subset final
 	{
 	public:
-		LevelsBuffer<20> ch0, ch1, ch2, ch3;
+		LevelsBuffer<LevelsCapacity> ch0, ch1, ch2, ch3;
 
 		INLINED Subset() noexcept = default;
 
@@ -467,23 +470,23 @@ namespace Mode6 {
 			}
 			else
 			{
-				ch0.ComputeChannelLevelsReduced<7, pbits, false, gTableLevels4_U16>(area, 0, kAlpha, water);
+				ch0.ComputeChannelLevelsReduced<7, pbits, false, gTableDeltas4_Value8>(area, 0, kAlpha, water);
 			}
 			int min0 = ch0.MinErr;
 			if (min0 >= water)
 				return false;
 
-			ch1.ComputeChannelLevelsReduced<7, pbits, true, gTableLevels4_U16>(area, 1, kGreen, water - min0);
+			ch1.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas4_Value8>(area, 1, kGreen, water - min0);
 			int min1 = ch1.MinErr;
 			if (min0 + min1 >= water)
 				return false;
 
-			ch2.ComputeChannelLevelsReduced<7, pbits, true, gTableLevels4_U16>(area, 2, kRed, water - min0 - min1);
+			ch2.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas4_Value8>(area, 2, kRed, water - min0 - min1);
 			int min2 = ch2.MinErr;
 			if (min0 + min1 + min2 >= water)
 				return false;
 
-			ch3.ComputeChannelLevelsReduced<7, pbits, true, gTableLevels4_U16>(area, 3, kBlue, water - min0 - min1 - min2);
+			ch3.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas4_Value8>(area, 3, kBlue, water - min0 - min1 - min2);
 			int min3 = ch3.MinErr;
 			if (min0 + min1 + min2 + min3 >= water)
 				return false;
@@ -505,8 +508,8 @@ namespace Mode6 {
 			int n2 = ch2.Count;
 			int n3 = ch3.Count;
 
-			int memAR[20];
-			int memAGB[20];
+			int memAR[LevelsCapacity];
+			int memAGB[LevelsCapacity];
 
 			for (int i0 = 0; i0 < n0; i0++)
 			{

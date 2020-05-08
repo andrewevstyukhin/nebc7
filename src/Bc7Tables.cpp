@@ -476,27 +476,26 @@ void InitSelection() noexcept
 }
 
 
-alignas(64) uint16_t gTableLevels2_U16[0x100][0x100 * 0x100];
-alignas(64) uint16_t gTableLevels2_Value7_U16[0x100][0x80 * 0x80];
-alignas(64) uint16_t gTableLevels2_Value6_U16[0x100][0x40 * 0x40];
-alignas(64) uint16_t gTableLevels2_Value5_U16[0x100][0x20 * 0x20];
+alignas(64) uint8_t gTableDeltas2_Value8[0x100][0x100 * 0x100];
+alignas(64) uint8_t gTableDeltas2_Value7[0x100][0x80 * 0x80];
+alignas(64) uint8_t gTableDeltas2_Value6[0x100][0x40 * 0x40];
+alignas(64) uint8_t gTableDeltas2_Value5[0x100][0x20 * 0x20];
 
-alignas(64) uint16_t gTableCutLevels2_U16[0x100][0x100];
-alignas(64) uint16_t gTableCutLevels2_Value6_U16[0x100][0x40];
-alignas(64) uint16_t gTableCutLevels2_Value5_U16[0x100][0x20];
+alignas(64) uint16_t gTableCuts2_Value8[0x100][0x100];
+alignas(64) uint16_t gTableCuts2_Value6[0x100][0x40];
+alignas(64) uint16_t gTableCuts2_Value5[0x100][0x20];
 
-alignas(64) static uint16_t gTableLevels3_U16[0x100][0x100 * 0x100];
-alignas(64) uint16_t gTableLevels3_Value7Shared_U16[0x100][0x80 * 0x80];
-alignas(64) uint16_t gTableLevels3_Value6_U16[0x100][0x40 * 0x40];
-alignas(64) uint16_t gTableLevels3_Value5_U16[0x100][0x20 * 0x20];
+alignas(64) uint8_t gTableDeltas3_Value7Shared[0x100][0x80 * 0x80];
+alignas(64) uint8_t gTableDeltas3_Value6[0x100][0x40 * 0x40];
+alignas(64) uint8_t gTableDeltas3_Value5[0x100][0x20 * 0x20];
 
-alignas(64) uint16_t gTableCutLevels3_Value7Shared_U16[0x100][0x80];
-alignas(64) uint16_t gTableCutLevels3_Value5_U16[0x100][0x20];
+alignas(64) uint16_t gTableCuts3_Value7Shared[0x100][0x80];
+alignas(64) uint16_t gTableCuts3_Value5[0x100][0x20];
 
-alignas(64) uint16_t gTableLevels4_U16[0x100][0x100 * 0x100];
+alignas(64) uint8_t gTableDeltas4_Value8[0x100][0x100 * 0x100];
 
 template<int bits>
-static INLINED void ReduceLevels(const uint16_t table[0x100][0x100 * 0x100], uint16_t* p)
+static INLINED void ReduceLevels(const uint8_t table[0x100][0x100 * 0x100], uint8_t* p)
 {
 	constexpr int step = 1 << (8 - bits);
 
@@ -517,7 +516,7 @@ static INLINED void ReduceLevels(const uint16_t table[0x100][0x100 * 0x100], uin
 }
 
 template<int bits>
-static INLINED void FilterSharedLevels(uint16_t* p)
+static INLINED void FilterSharedLevels(uint8_t* p)
 {
 	constexpr int N = 1 << bits;
 
@@ -527,7 +526,7 @@ static INLINED void FilterSharedLevels(uint16_t* p)
 		{
 			for (int iL = (iH & 1) ^ 1; iL < N; iL += 2)
 			{
-				p[iL] = 0xFFFF;
+				p[iL] = 0xFF;
 			}
 
 			p += N;
@@ -536,7 +535,7 @@ static INLINED void FilterSharedLevels(uint16_t* p)
 }
 
 template<int bits>
-static INLINED void CutLevels(const uint16_t table[0x100][(1 << bits) * (1 << bits)], uint16_t tower[0x100][1 << bits])
+static INLINED void CutLevels(const uint8_t table[0x100][1 << 2 * bits], uint16_t tower[0x100][1 << bits])
 {
 	constexpr int N = 1 << bits;
 
@@ -560,6 +559,7 @@ static INLINED void CutLevels(const uint16_t table[0x100][(1 << bits) * (1 << bi
 					cut = value;
 				}
 			}
+			cut *= cut;
 
 			tower[x][iH] = cut;
 
@@ -591,8 +591,8 @@ void InitLevels() noexcept
 			__m128i m0 = gTableInterpolate2_U8[0];
 			__m128i m1 = gTableInterpolate2_U8[1];
 
-			mratio = _mm_blend_epi16(mratio, m0, 0x11);
-			mratio = _mm_blend_epi16(mratio, m1, 0x22);
+			mratio = _mm_blend_epi16(mratio, m0, 0x11 + 0x44);
+			mratio = _mm_blend_epi16(mratio, m1, 0x22 + 0x88);
 		}
 
 		for (int x = 0; x < 0x100; x++)
@@ -612,27 +612,26 @@ void InitLevels() noexcept
 					mv = _mm_srli_epi16(mv, 6);
 
 					mv = _mm_sub_epi16(mv, mx);
-					mv = _mm_mullo_epi16(mv, mv);
+					mv = _mm_abs_epi16(mv);
 
-					mv = _mm_min_epu16(mv, _mm_shuffle_epi32(mv, _MM_SHUFFLE(1, 0, 3, 2)));
-					mv = _mm_min_epu16(mv, _mm_shufflelo_epi16(mv, _MM_SHUFFLE(2, 3, 0, 1)));
-
-					gTableLevels2_U16[x][c] = (uint16_t)(_mm_cvtsi128_si32(mv) & 0xFFFF);
+					gTableDeltas2_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
 				}
 			}
 		}
 
-		ReduceLevels<7>(gTableLevels2_U16, &gTableLevels2_Value7_U16[0][0]);
-		ReduceLevels<6>(gTableLevels2_U16, &gTableLevels2_Value6_U16[0][0]);
-		ReduceLevels<5>(gTableLevels2_U16, &gTableLevels2_Value5_U16[0][0]);
+		ReduceLevels<7>(gTableDeltas2_Value8, &gTableDeltas2_Value7[0][0]);
+		ReduceLevels<6>(gTableDeltas2_Value8, &gTableDeltas2_Value6[0][0]);
+		ReduceLevels<5>(gTableDeltas2_Value8, &gTableDeltas2_Value5[0][0]);
 
-		CutLevels<8>(gTableLevels2_U16, gTableCutLevels2_U16);
-		CutLevels<6>(gTableLevels2_Value6_U16, gTableCutLevels2_Value6_U16);
-		CutLevels<5>(gTableLevels2_Value5_U16, gTableCutLevels2_Value5_U16);
+		CutLevels<8>(gTableDeltas2_Value8, gTableCuts2_Value8);
+		CutLevels<6>(gTableDeltas2_Value6, gTableCuts2_Value6);
+		CutLevels<5>(gTableDeltas2_Value5, gTableCuts2_Value5);
 	}
 
 	// 3-bit index
 	{
+		const auto gTableDeltas3_Value8 = gTableDeltas4_Value8;
+
 		__m128i mratio = _mm_setzero_si128();
 		{
 			__m128i m0 = gTableInterpolate3_U8[0];
@@ -663,23 +662,19 @@ void InitLevels() noexcept
 					mv = _mm_srli_epi16(mv, 6);
 
 					mv = _mm_sub_epi16(mv, mx);
-					mv = _mm_mullo_epi16(mv, mv);
+					mv = _mm_abs_epi16(mv);
 
-					mv = _mm_min_epu16(mv, _mm_shuffle_epi32(mv, _MM_SHUFFLE(1, 0, 3, 2)));
-					mv = _mm_min_epu16(mv, _mm_shufflelo_epi16(mv, _MM_SHUFFLE(1, 0, 3, 2)));
-					mv = _mm_min_epu16(mv, _mm_shufflelo_epi16(mv, _MM_SHUFFLE(2, 3, 0, 1)));
-
-					gTableLevels3_U16[x][c] = (uint16_t)(_mm_cvtsi128_si32(mv) & 0xFFFF);
+					gTableDeltas3_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
 				}
 			}
 		}
 
-		ReduceLevels<7>(gTableLevels3_U16, &gTableLevels3_Value7Shared_U16[0][0]); FilterSharedLevels<7>(&gTableLevels3_Value7Shared_U16[0][0]);
-		ReduceLevels<6>(gTableLevels3_U16, &gTableLevels3_Value6_U16[0][0]);
-		ReduceLevels<5>(gTableLevels3_U16, &gTableLevels3_Value5_U16[0][0]);
+		ReduceLevels<7>(gTableDeltas3_Value8, &gTableDeltas3_Value7Shared[0][0]); FilterSharedLevels<7>(&gTableDeltas3_Value7Shared[0][0]);
+		ReduceLevels<6>(gTableDeltas3_Value8, &gTableDeltas3_Value6[0][0]);
+		ReduceLevels<5>(gTableDeltas3_Value8, &gTableDeltas3_Value5[0][0]);
 
-		CutLevels<7>(gTableLevels3_Value7Shared_U16, gTableCutLevels3_Value7Shared_U16);
-		CutLevels<5>(gTableLevels3_Value5_U16, gTableCutLevels3_Value5_U16);
+		CutLevels<7>(gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared);
+		CutLevels<5>(gTableDeltas3_Value5, gTableCuts3_Value5);
 	}
 
 	// 4-bit index
@@ -731,15 +726,12 @@ void InitLevels() noexcept
 					mv0 = _mm_sub_epi16(mv0, mx);
 					mv1 = _mm_sub_epi16(mv1, mx);
 
-					mv0 = _mm_mullo_epi16(mv0, mv0);
-					mv1 = _mm_mullo_epi16(mv1, mv1);
+					mv0 = _mm_abs_epi16(mv0);
+					mv1 = _mm_abs_epi16(mv1);
 
 					__m128i mv = _mm_min_epu16(mv0, mv1);
-					mv = _mm_min_epu16(mv, _mm_shuffle_epi32(mv, _MM_SHUFFLE(1, 0, 3, 2)));
-					mv = _mm_min_epu16(mv, _mm_shufflelo_epi16(mv, _MM_SHUFFLE(1, 0, 3, 2)));
-					mv = _mm_min_epu16(mv, _mm_shufflelo_epi16(mv, _MM_SHUFFLE(2, 3, 0, 1)));
 
-					gTableLevels4_U16[x][c] = (uint16_t)(_mm_cvtsi128_si32(mv) & 0xFFFF);
+					gTableDeltas4_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
 				}
 			}
 		}

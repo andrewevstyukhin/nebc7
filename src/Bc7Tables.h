@@ -36,23 +36,23 @@ alignas(32) extern uint64_t gTableSelection33[64];
 void InitSelection() noexcept;
 
 
-alignas(64) extern uint16_t gTableLevels2_U16[0x100][0x100 * 0x100];
-alignas(64) extern uint16_t gTableLevels2_Value7_U16[0x100][0x80 * 0x80];
-alignas(64) extern uint16_t gTableLevels2_Value6_U16[0x100][0x40 * 0x40];
-alignas(64) extern uint16_t gTableLevels2_Value5_U16[0x100][0x20 * 0x20];
+alignas(64) extern uint8_t gTableDeltas2_Value8[0x100][0x100 * 0x100];
+alignas(64) extern uint8_t gTableDeltas2_Value7[0x100][0x80 * 0x80];
+alignas(64) extern uint8_t gTableDeltas2_Value6[0x100][0x40 * 0x40];
+alignas(64) extern uint8_t gTableDeltas2_Value5[0x100][0x20 * 0x20];
 
-alignas(64) extern uint16_t gTableCutLevels2_U16[0x100][0x100];
-alignas(64) extern uint16_t gTableCutLevels2_Value6_U16[0x100][0x40];
-alignas(64) extern uint16_t gTableCutLevels2_Value5_U16[0x100][0x20];
+alignas(64) extern uint16_t gTableCuts2_Value8[0x100][0x100];
+alignas(64) extern uint16_t gTableCuts2_Value6[0x100][0x40];
+alignas(64) extern uint16_t gTableCuts2_Value5[0x100][0x20];
 
-alignas(64) extern uint16_t gTableLevels3_Value7Shared_U16[0x100][0x80 * 0x80];
-alignas(64) extern uint16_t gTableLevels3_Value6_U16[0x100][0x40 * 0x40];
-alignas(64) extern uint16_t gTableLevels3_Value5_U16[0x100][0x20 * 0x20];
+alignas(64) extern uint8_t gTableDeltas3_Value7Shared[0x100][0x80 * 0x80];
+alignas(64) extern uint8_t gTableDeltas3_Value6[0x100][0x40 * 0x40];
+alignas(64) extern uint8_t gTableDeltas3_Value5[0x100][0x20 * 0x20];
 
-alignas(64) extern uint16_t gTableCutLevels3_Value7Shared_U16[0x100][0x80];
-alignas(64) extern uint16_t gTableCutLevels3_Value5_U16[0x100][0x20];
+alignas(64) extern uint16_t gTableCuts3_Value7Shared[0x100][0x80];
+alignas(64) extern uint16_t gTableCuts3_Value5[0x100][0x20];
 
-alignas(64) extern uint16_t gTableLevels4_U16[0x100][0x100 * 0x100];
+alignas(64) extern uint8_t gTableDeltas4_Value8[0x100][0x100 * 0x100];
 
 void InitLevels() noexcept;
 

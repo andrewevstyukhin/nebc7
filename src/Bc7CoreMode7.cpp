@@ -13,6 +13,8 @@
 
 namespace Mode7 {
 
+	constexpr int LevelsCapacity = 20;
+
 #if defined(OPTION_COUNTERS)
 	static std::atomic_int gComputeSubsetError2, gComputeSubsetError2AG, gComputeSubsetError2AR, gComputeSubsetError2AGR, gComputeSubsetError2AGB;
 #endif
@@ -125,7 +127,8 @@ namespace Mode7 {
 		if (error)
 		{
 			error *= kAlpha;
-			error *= gTableLevels2_U16[0][alpha];
+			int v = gTableDeltas2_Value8[0][alpha];
+			error *= v * v;
 		}
 
 		return error;
@@ -541,7 +544,7 @@ namespace Mode7 {
 	class Subset final
 	{
 	public:
-		LevelsBuffer<20> ch0, ch1, ch2, ch3;
+		LevelsBuffer<LevelsCapacity> ch0, ch1, ch2, ch3;
 
 		INLINED Subset() noexcept = default;
 
@@ -554,23 +557,23 @@ namespace Mode7 {
 			}
 			else
 			{
-				ch0.ComputeChannelLevelsReduced<5, pbits, false, gTableLevels2_Value6_U16>(area, 0, kAlpha, water - estimation.ch1 - estimation.ch2 - estimation.ch3);
+				ch0.ComputeChannelLevelsReduced<5, pbits, false, gTableDeltas2_Value6>(area, 0, kAlpha, water - estimation.ch1 - estimation.ch2 - estimation.ch3);
 			}
 			int min0 = ch0.MinErr;
 			if (min0 >= water)
 				return false;
 
-			ch1.ComputeChannelLevelsReduced<5, pbits, true, gTableLevels2_Value6_U16>(area, 1, kGreen, water - min0 - estimation.ch2 - estimation.ch3);
+			ch1.ComputeChannelLevelsReduced<5, pbits, true, gTableDeltas2_Value6>(area, 1, kGreen, water - min0 - estimation.ch2 - estimation.ch3);
 			int min1 = ch1.MinErr;
 			if (min0 + min1 >= water)
 				return false;
 
-			ch2.ComputeChannelLevelsReduced<5, pbits, true, gTableLevels2_Value6_U16>(area, 2, kRed, water - min0 - min1 - estimation.ch3);
+			ch2.ComputeChannelLevelsReduced<5, pbits, true, gTableDeltas2_Value6>(area, 2, kRed, water - min0 - min1 - estimation.ch3);
 			int min2 = ch2.MinErr;
 			if (min0 + min1 + min2 >= water)
 				return false;
 
-			ch3.ComputeChannelLevelsReduced<5, pbits, true, gTableLevels2_Value6_U16>(area, 3, kBlue, water - min0 - min1 - min2);
+			ch3.ComputeChannelLevelsReduced<5, pbits, true, gTableDeltas2_Value6>(area, 3, kBlue, water - min0 - min1 - min2);
 			int min3 = ch3.MinErr;
 			if (min0 + min1 + min2 + min3 >= water)
 				return false;
@@ -592,8 +595,8 @@ namespace Mode7 {
 			int n2 = ch2.Count;
 			int n3 = ch3.Count;
 
-			int memAR[20];
-			int memAGB[20];
+			int memAR[LevelsCapacity];
+			int memAGB[LevelsCapacity];
 
 			for (int i0 = 0; i0 < n0; i0++)
 			{
@@ -883,7 +886,7 @@ namespace Mode7 {
 
 			if (!area.IsOpaque)
 			{
-				int level0 = LevelsMinimum::EstimateChannelLevelsReduced<6, false, gTableLevels2_Value6_U16, gTableCutLevels2_Value6_U16>(area, 0, kAlpha, water - error);
+				int level0 = LevelsMinimum::EstimateChannelLevelsReduced<6, false, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 0, kAlpha, water - error);
 				estimation.ch0 = level0;
 				error += level0;
 			}
@@ -894,19 +897,19 @@ namespace Mode7 {
 
 			if (error < water)
 			{
-				int level1 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableLevels2_Value6_U16, gTableCutLevels2_Value6_U16>(area, 1, kGreen, water - error);
+				int level1 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 1, kGreen, water - error);
 				estimation.ch1 = level1;
 				error += level1;
 
 				if (error < water)
 				{
-					int level2 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableLevels2_Value6_U16, gTableCutLevels2_Value6_U16>(area, 2, kRed, water - error);
+					int level2 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 2, kRed, water - error);
 					estimation.ch2 = level2;
 					error += level2;
 
 					if (error < water)
 					{
-						int level3 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableLevels2_Value6_U16, gTableCutLevels2_Value6_U16>(area, 3, kBlue, water - error);
+						int level3 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 3, kBlue, water - error);
 						estimation.ch3 = level3;
 						error += level3;
 
@@ -924,7 +927,7 @@ namespace Mode7 {
 
 	void CompressBlockFull(Cell& input) noexcept
 	{
-		Node order[64];
+		Node order[64]{};
 		int lines1[64];
 		int lines2[64];
 

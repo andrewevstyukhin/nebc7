@@ -95,6 +95,16 @@ struct alignas(8) Node
 	}
 };
 
+struct NodeShort
+{
+	uint32_t ColorError;
+
+	INLINED void Init(int64_t error, int color) noexcept
+	{
+		ColorError = (static_cast<uint32_t>(error) << 16) | static_cast<uint32_t>(color);
+	}
+};
+
 // A,G,R,B
 struct alignas(64) Modulations
 {
@@ -116,6 +126,7 @@ void AreaReduceTable3(const Area& area, __m128i& mc, uint64_t& indices) noexcept
 void AreaReduceTable4(__m128i& mc, uint64_t& indices) noexcept;
 
 NOTINLINED Node* radix_sort(Node* input, Node* work, size_t N) noexcept;
+NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) noexcept;
 
 NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, const __m128i mfix, Modulations& state, const int M) noexcept;
 

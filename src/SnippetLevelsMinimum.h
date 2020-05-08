@@ -3,6 +3,10 @@
 #include "pch.h"
 #include "Bc7Core.h"
 
+#if defined(OPTION_COUNTERS)
+inline std::atomic_int gMinimumFull, gMinimumShort;
+#endif
+
 namespace LevelsMinimum {
 
 	static INLINED int Min(int x, int y) noexcept
@@ -17,7 +21,7 @@ namespace LevelsMinimum {
 
 #if defined(OPTION_AVX512)
 
-	static INLINED void Estimate32Short(__m512i& wbest, const uint16_t* values[16], const size_t count, const int c) noexcept
+	static INLINED void Estimate32Short(__m512i& wbest, const uint8_t* values[16], const size_t count, const int c) noexcept
 	{
 		__m512i wsum = _mm512_setzero_si512();
 
@@ -25,9 +29,13 @@ namespace LevelsMinimum {
 		{
 			auto value = values[i];
 
-			const __m512i* p = (const __m512i*)&value[c];
+			const __m256i* p = (const __m256i*)&value[c];
 
-			__m512i wadd = _mm512_maskz_load_epi64(kFullMask8, p);
+			__m256i vdelta = _mm256_load_si256(p);
+
+			__m512i wadd = _mm512_maskz_cvtepu8_epi16(kFullMask32, vdelta);
+
+			wadd = _mm512_maskz_mullo_epi16(kFullMask32, wadd, wadd);
 
 			wsum = _mm512_maskz_adds_epu16(kFullMask32, wsum, wadd);
 		}
@@ -35,7 +43,7 @@ namespace LevelsMinimum {
 		wbest = _mm512_maskz_min_epu16(kFullMask32, wbest, wsum);
 	}
 
-	static INLINED void Estimate16Full(__m512i& wbest, const uint16_t* values[16], const size_t count, const int c) noexcept
+	static INLINED void Estimate16Full(__m512i& wbest, const uint8_t* values[16], const size_t count, const int c) noexcept
 	{
 		__m512i wsum = _mm512_setzero_si512();
 
@@ -43,11 +51,15 @@ namespace LevelsMinimum {
 		{
 			auto value = values[i];
 
-			const __m256i* p = (const __m256i*)&value[c];
+			const __m128i* p = (const __m128i*)&value[c];
 
-			__m256i vadd = _mm256_load_si256(p);
+			__m128i mdelta = _mm_load_si128(p);
 
-			wsum = _mm512_maskz_add_epi32(kFullMask16, wsum, _mm512_maskz_cvtepu16_epi32(kFullMask16, vadd));
+			__m512i wadd = _mm512_maskz_cvtepu8_epi32(kFullMask16, mdelta);
+
+			wadd = _mm512_maskz_mullo_epi16(kFullMask32, wadd, wadd);
+
+			wsum = _mm512_maskz_add_epi32(kFullMask16, wsum, wadd);
 		}
 
 		wbest = _mm512_maskz_min_epi32(kFullMask16, wbest, wsum);
@@ -55,28 +67,7 @@ namespace LevelsMinimum {
 
 #elif defined(OPTION_AVX2)
 
-	static INLINED void Estimate32Short(__m256i& vbest, const uint16_t* values[16], const size_t count, const int c) noexcept
-	{
-		__m256i vsum0 = _mm256_setzero_si256();
-		__m256i vsum1 = _mm256_setzero_si256();
-
-		for (size_t i = 0; i < count; i++)
-		{
-			auto value = values[i];
-
-			const __m256i* p = (const __m256i*)&value[c];
-
-			__m256i vadd0 = _mm256_load_si256(&p[0]);
-			__m256i vadd1 = _mm256_load_si256(&p[1]);
-
-			vsum0 = _mm256_adds_epu16(vsum0, vadd0);
-			vsum1 = _mm256_adds_epu16(vsum1, vadd1);
-		}
-
-		vbest = _mm256_min_epu16(vbest, _mm256_min_epu16(vsum0, vsum1));
-	}
-
-	static INLINED void Estimate16Full(__m256i& vbest, const uint16_t* values[16], const size_t count, const int c) noexcept
+	static INLINED void Estimate32Short(__m256i& vbest, const uint8_t* values[16], const size_t count, const int c) noexcept
 	{
 		__m256i vsum0 = _mm256_setzero_si256();
 		__m256i vsum1 = _mm256_setzero_si256();
@@ -89,23 +80,27 @@ namespace LevelsMinimum {
 
 			const __m256i* p = (const __m256i*)&value[c];
 
-			__m256i vadd0 = _mm256_load_si256(&p[0]);
+			__m256i vdelta = _mm256_load_si256(p);
 
-			vsum0 = _mm256_add_epi32(vsum0, _mm256_unpacklo_epi16(vadd0, vzero));
-			vsum1 = _mm256_add_epi32(vsum1, _mm256_unpackhi_epi16(vadd0, vzero));
+			__m256i vadd0 = _mm256_unpacklo_epi8(vdelta, vzero);
+			__m256i vadd1 = _mm256_unpackhi_epi8(vdelta, vzero);
+
+			vadd0 = _mm256_mullo_epi16(vadd0, vadd0);
+			vadd1 = _mm256_mullo_epi16(vadd1, vadd1);
+
+			vsum0 = _mm256_adds_epu16(vsum0, vadd0);
+			vsum1 = _mm256_adds_epu16(vsum1, vadd1);
 		}
 
-		vbest = _mm256_min_epi32(vbest, _mm256_min_epi32(vsum0, vsum1));
+		vbest = _mm256_min_epu16(vbest, _mm256_min_epu16(vsum0, vsum1));
 	}
 
-#else
-
-	static INLINED void Estimate32Short(__m128i& mbest, const uint16_t* values[16], const size_t count, const int c) noexcept
+	static INLINED void Estimate16Full(__m256i& vbest, const uint8_t* values[16], const size_t count, const int c) noexcept
 	{
-		__m128i msum0 = _mm_setzero_si128();
-		__m128i msum1 = _mm_setzero_si128();
-		__m128i msum2 = _mm_setzero_si128();
-		__m128i msum3 = _mm_setzero_si128();
+		__m256i vsum0 = _mm256_setzero_si256();
+		__m256i vsum1 = _mm256_setzero_si256();
+
+		__m256i vzero = _mm256_setzero_si256();
 
 		for (size_t i = 0; i < count; i++)
 		{
@@ -113,21 +108,22 @@ namespace LevelsMinimum {
 
 			const __m128i* p = (const __m128i*)&value[c];
 
-			__m128i madd0 = _mm_load_si128(&p[0]);
-			__m128i madd1 = _mm_load_si128(&p[1]);
-			__m128i madd2 = _mm_load_si128(&p[2]);
-			__m128i madd3 = _mm_load_si128(&p[3]);
+			__m128i mdelta = _mm_load_si128(p);
 
-			msum0 = _mm_adds_epu16(msum0, madd0);
-			msum1 = _mm_adds_epu16(msum1, madd1);
-			msum2 = _mm_adds_epu16(msum2, madd2);
-			msum3 = _mm_adds_epu16(msum3, madd3);
+			__m256i vadd = _mm256_cvtepu8_epi16(mdelta);
+
+			vadd = _mm256_mullo_epi16(vadd, vadd);
+
+			vsum0 = _mm256_add_epi32(vsum0, _mm256_unpacklo_epi16(vadd, vzero));
+			vsum1 = _mm256_add_epi32(vsum1, _mm256_unpackhi_epi16(vadd, vzero));
 		}
 
-		mbest = _mm_min_epu16(mbest, _mm_min_epu16(_mm_min_epu16(msum0, msum1), _mm_min_epu16(msum2, msum3)));
+		vbest = _mm256_min_epi32(vbest, _mm256_min_epi32(vsum0, vsum1));
 	}
 
-	static INLINED void Estimate16Full(__m128i& mbest, const uint16_t* values[16], const size_t count, const int c) noexcept
+#else
+
+	static INLINED void Estimate32Short(__m128i& mbest, const uint8_t* values[16], const size_t count, const int c) noexcept
 	{
 		__m128i msum0 = _mm_setzero_si128();
 		__m128i msum1 = _mm_setzero_si128();
@@ -142,8 +138,50 @@ namespace LevelsMinimum {
 
 			const __m128i* p = (const __m128i*)&value[c];
 
-			__m128i madd0 = _mm_load_si128(&p[0]);
-			__m128i madd1 = _mm_load_si128(&p[1]);
+			__m128i mdelta0 = _mm_load_si128(&p[0]);
+			__m128i mdelta1 = _mm_load_si128(&p[1]);
+
+			__m128i madd0 = _mm_cvtepu8_epi16(mdelta0);
+			__m128i madd1 = _mm_unpackhi_epi8(mdelta0, mzero);
+			__m128i madd2 = _mm_cvtepu8_epi16(mdelta1);
+			__m128i madd3 = _mm_unpackhi_epi8(mdelta1, mzero);
+
+			madd0 = _mm_mullo_epi16(madd0, madd0);
+			madd1 = _mm_mullo_epi16(madd1, madd1);
+			madd2 = _mm_mullo_epi16(madd2, madd2);
+			madd3 = _mm_mullo_epi16(madd3, madd3);
+
+			msum0 = _mm_adds_epu16(msum0, madd0);
+			msum1 = _mm_adds_epu16(msum1, madd1);
+			msum2 = _mm_adds_epu16(msum2, madd2);
+			msum3 = _mm_adds_epu16(msum3, madd3);
+		}
+
+		mbest = _mm_min_epu16(mbest, _mm_min_epu16(_mm_min_epu16(msum0, msum1), _mm_min_epu16(msum2, msum3)));
+	}
+
+	static INLINED void Estimate16Full(__m128i& mbest, const uint8_t* values[16], const size_t count, const int c) noexcept
+	{
+		__m128i msum0 = _mm_setzero_si128();
+		__m128i msum1 = _mm_setzero_si128();
+		__m128i msum2 = _mm_setzero_si128();
+		__m128i msum3 = _mm_setzero_si128();
+
+		__m128i mzero = _mm_setzero_si128();
+
+		for (size_t i = 0; i < count; i++)
+		{
+			auto value = values[i];
+
+			const __m128i* p = (const __m128i*)&value[c];
+
+			__m128i mdelta = _mm_load_si128(p);
+
+			__m128i madd0 = _mm_cvtepu8_epi16(mdelta);
+			__m128i madd1 = _mm_unpackhi_epi8(mdelta, mzero);
+
+			madd0 = _mm_mullo_epi16(madd0, madd0);
+			madd1 = _mm_mullo_epi16(madd1, madd1);
 
 			msum0 = _mm_add_epi32(msum0, _mm_unpacklo_epi16(madd0, mzero));
 			msum1 = _mm_add_epi32(msum1, _mm_unpackhi_epi16(madd0, mzero));
@@ -156,10 +194,10 @@ namespace LevelsMinimum {
 
 #endif
 
-	template<int bits, bool transparent, const uint16_t table[0x100][(1 << bits) * (1 << bits)], const uint16_t tower[0x100][1 << bits]>
+	template<int bits, bool transparent, const uint8_t table[0x100][1 << 2 * bits], const uint16_t tower[0x100][1 << bits]>
 	NOTINLINED int EstimateChannelLevelsReduced(const Area& area, const size_t offset, const int weight, const int water) noexcept
 	{
-		const uint16_t* values[16];
+		const uint8_t* values[16];
 		const uint16_t* cuts[16];
 
 		size_t count;
@@ -222,6 +260,10 @@ namespace LevelsMinimum {
 
 		if (top <= 0xFFFF)
 		{
+#if defined(OPTION_COUNTERS)
+			gMinimumShort++;
+#endif
+
 			alignas(64) uint16_t rows[1 << bits];
 
 #if defined(OPTION_AVX512)
@@ -318,9 +360,11 @@ namespace LevelsMinimum {
 		}
 		else
 		{
-			alignas(64) int rows[1 << bits];
+#if defined(OPTION_COUNTERS)
+			gMinimumFull++;
+#endif
 
-			__m128i mzero = _mm_setzero_si128();
+			alignas(64) int rows[1 << bits];
 
 #if defined(OPTION_AVX512)
 			for (int iH = HL & ~15; iH < HH; iH += 16)
@@ -359,6 +403,8 @@ namespace LevelsMinimum {
 				_mm256_store_si256((__m256i*)&rows[iH], vcut);
 			}
 #else
+			__m128i mzero = _mm_setzero_si128();
+
 			for (int iH = HL & ~7; iH < HH; iH += 8)
 			{
 				__m128i mcut0 = _mm_setzero_si128();

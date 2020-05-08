@@ -13,6 +13,8 @@
 
 namespace Mode1 {
 
+	constexpr int LevelsCapacity = 48;
+
 #if defined(OPTION_COUNTERS)
 	static std::atomic_int gComputeSubsetError3, gComputeSubsetError3GR, gComputeSubsetError3GB;
 #endif
@@ -212,24 +214,24 @@ namespace Mode1 {
 	class Subset final
 	{
 	public:
-		LevelsBuffer<48> ch1, ch2, ch3;
+		LevelsBuffer<LevelsCapacity> ch1, ch2, ch3;
 
 		INLINED Subset() noexcept = default;
 
 		template<int pbits>
 		INLINED bool InitLevels(const Area& area, const int water, const Estimation& estimation) noexcept
 		{
-			ch1.ComputeChannelLevelsReduced<6, pbits, false, gTableLevels3_Value7Shared_U16>(area, 1, kGreen, water - estimation.ch2 - estimation.ch3);
+			ch1.ComputeChannelLevelsReduced<6, pbits, false, gTableDeltas3_Value7Shared>(area, 1, kGreen, water - estimation.ch2 - estimation.ch3);
 			int min1 = ch1.MinErr;
 			if (min1 >= water)
 				return false;
 
-			ch2.ComputeChannelLevelsReduced<6, pbits, false, gTableLevels3_Value7Shared_U16>(area, 2, kRed, water - min1 - estimation.ch3);
+			ch2.ComputeChannelLevelsReduced<6, pbits, false, gTableDeltas3_Value7Shared>(area, 2, kRed, water - min1 - estimation.ch3);
 			int min2 = ch2.MinErr;
 			if (min1 + min2 >= water)
 				return false;
 
-			ch3.ComputeChannelLevelsReduced<6, pbits, false, gTableLevels3_Value7Shared_U16>(area, 3, kBlue, water - min1 - min2);
+			ch3.ComputeChannelLevelsReduced<6, pbits, false, gTableDeltas3_Value7Shared>(area, 3, kBlue, water - min1 - min2);
 			int min3 = ch3.MinErr;
 			if (min1 + min2 + min3 >= water)
 				return false;
@@ -249,7 +251,7 @@ namespace Mode1 {
 			int n2 = ch2.Count;
 			int n3 = ch3.Count;
 
-			int memGB[48];
+			int memGB[LevelsCapacity];
 
 			for (int i1 = 0; i1 < n1; i1++)
 			{
@@ -438,19 +440,19 @@ namespace Mode1 {
 		int error = 0;
 		if (error < water)
 		{
-			int level1 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableLevels3_Value7Shared_U16, gTableCutLevels3_Value7Shared_U16>(area, 1, kGreen, water - error);
+			int level1 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared>(area, 1, kGreen, water - error);
 			estimation.ch1 = level1;
 			error += level1;
 
 			if (error < water)
 			{
-				int level2 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableLevels3_Value7Shared_U16, gTableCutLevels3_Value7Shared_U16>(area, 2, kRed, water - error);
+				int level2 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared>(area, 2, kRed, water - error);
 				estimation.ch2 = level2;
 				error += level2;
 
 				if (error < water)
 				{
-					int level3 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableLevels3_Value7Shared_U16, gTableCutLevels3_Value7Shared_U16>(area, 3, kBlue, water - error);
+					int level3 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared>(area, 3, kBlue, water - error);
 					estimation.ch3 = level3;
 					error += level3;
 
@@ -467,7 +469,7 @@ namespace Mode1 {
 
 	void CompressBlockFull(Cell& input) noexcept
 	{
-		Node order[64];
+		Node order[64]{};
 		int lines1[64];
 		int lines2[64];
 

@@ -11,6 +11,8 @@
 
 namespace Mode4 {
 
+	constexpr int LevelsCapacity = 48;
+
 #if defined(OPTION_COUNTERS)
 	static std::atomic_int gComputeSubsetError23[4], gComputeSubsetError23AG[4], gComputeSubsetError23AR[4], gComputeSubsetError23AGR[4], gComputeSubsetError23AGB[4];
 	static std::atomic_int gComputeSubsetError32[4], gComputeSubsetError32AG[4], gComputeSubsetError32AR[4], gComputeSubsetError32AGR[4], gComputeSubsetError32AGB[4];
@@ -671,7 +673,7 @@ namespace Mode4 {
 	class Subset23 final
 	{
 	public:
-		LevelsBuffer<48> chA, chG, chR, chB;
+		LevelsBuffer<LevelsCapacity> chA, chG, chR, chB;
 
 		INLINED Subset23() noexcept = default;
 
@@ -685,11 +687,11 @@ namespace Mode4 {
 			{
 				if (rotation == 0)
 				{
-					chA.ComputeChannelLevelsReduced<6, -1, false, gTableLevels3_Value6_U16>(area, 0, kAlpha, water, 1);
+					chA.ComputeChannelLevelsReduced<6, -1, false, gTableDeltas3_Value6, true>(area, 0, kAlpha, water);
 				}
 				else
 				{
-					chA.ComputeChannelLevelsReduced<5, -1, false, gTableLevels2_Value5_U16>(area, 0, kAlpha, water);
+					chA.ComputeChannelLevelsReduced<5, -1, false, gTableDeltas2_Value5>(area, 0, kAlpha, water);
 				}
 			}
 			int minA = chA.MinErr;
@@ -698,11 +700,11 @@ namespace Mode4 {
 
 			if (rotation == 2)
 			{
-				chG.ComputeChannelLevelsReduced<6, -1, true, gTableLevels3_Value6_U16>(area, 1, kGreen, water - minA, 1);
+				chG.ComputeChannelLevelsReduced<6, -1, true, gTableDeltas3_Value6, true>(area, 1, kGreen, water - minA);
 			}
 			else
 			{
-				chG.ComputeChannelLevelsReduced<5, -1, true, gTableLevels2_Value5_U16>(area, 1, kGreen, water - minA);
+				chG.ComputeChannelLevelsReduced<5, -1, true, gTableDeltas2_Value5>(area, 1, kGreen, water - minA);
 			}
 			int minG = chG.MinErr;
 			if (minA + minG >= water)
@@ -710,11 +712,11 @@ namespace Mode4 {
 
 			if (rotation == 1)
 			{
-				chR.ComputeChannelLevelsReduced<6, -1, true, gTableLevels3_Value6_U16>(area, 2, kRed, water - minA - minG, 1);
+				chR.ComputeChannelLevelsReduced<6, -1, true, gTableDeltas3_Value6, true>(area, 2, kRed, water - minA - minG);
 			}
 			else
 			{
-				chR.ComputeChannelLevelsReduced<5, -1, true, gTableLevels2_Value5_U16>(area, 2, kRed, water - minA - minG);
+				chR.ComputeChannelLevelsReduced<5, -1, true, gTableDeltas2_Value5>(area, 2, kRed, water - minA - minG);
 			}
 			int minR = chR.MinErr;
 			if (minA + minG + minR >= water)
@@ -722,11 +724,11 @@ namespace Mode4 {
 
 			if (rotation == 3)
 			{
-				chB.ComputeChannelLevelsReduced<6, -1, true, gTableLevels3_Value6_U16>(area, 3, kBlue, water - minA - minG - minR, 1);
+				chB.ComputeChannelLevelsReduced<6, -1, true, gTableDeltas3_Value6, true>(area, 3, kBlue, water - minA - minG - minR);
 			}
 			else
 			{
-				chB.ComputeChannelLevelsReduced<5, -1, true, gTableLevels2_Value5_U16>(area, 3, kBlue, water - minA - minG - minR);
+				chB.ComputeChannelLevelsReduced<5, -1, true, gTableDeltas2_Value5>(area, 3, kBlue, water - minA - minG - minR);
 			}
 			int minB = chB.MinErr;
 			if (minA + minG + minR + minB >= water)
@@ -752,8 +754,8 @@ namespace Mode4 {
 
 			const __m128i mrot = GetRotationShuffleNarrow(rotation);
 
-			int memAR[48];
-			int memAGB[48];
+			int memAR[LevelsCapacity];
+			int memAGB[LevelsCapacity];
 
 			for (int iA = 0; iA < nA; iA++)
 			{
@@ -917,7 +919,7 @@ namespace Mode4 {
 	class Subset32 final
 	{
 	public:
-		LevelsBuffer<48> chA, chG, chR, chB;
+		LevelsBuffer<LevelsCapacity> chA, chG, chR, chB;
 
 		INLINED Subset32() noexcept = default;
 
@@ -931,11 +933,11 @@ namespace Mode4 {
 			{
 				if (rotation == 0 + 4)
 				{
-					chA.ComputeChannelLevelsReduced<6, -1, false, gTableLevels2_Value6_U16>(area, 0, kAlpha, water, 1);
+					chA.ComputeChannelLevelsReduced<6, -1, false, gTableDeltas2_Value6, true>(area, 0, kAlpha, water);
 				}
 				else
 				{
-					chA.ComputeChannelLevelsReduced<5, -1, false, gTableLevels3_Value5_U16>(area, 0, kAlpha, water);
+					chA.ComputeChannelLevelsReduced<5, -1, false, gTableDeltas3_Value5>(area, 0, kAlpha, water);
 				}
 			}
 			int minA = chA.MinErr;
@@ -944,11 +946,11 @@ namespace Mode4 {
 
 			if (rotation == 2 + 4)
 			{
-				chG.ComputeChannelLevelsReduced<6, -1, true, gTableLevels2_Value6_U16>(area, 1, kGreen, water - minA, 1);
+				chG.ComputeChannelLevelsReduced<6, -1, true, gTableDeltas2_Value6, true>(area, 1, kGreen, water - minA);
 			}
 			else
 			{
-				chG.ComputeChannelLevelsReduced<5, -1, true, gTableLevels3_Value5_U16>(area, 1, kGreen, water - minA);
+				chG.ComputeChannelLevelsReduced<5, -1, true, gTableDeltas3_Value5>(area, 1, kGreen, water - minA);
 			}
 			int minG = chG.MinErr;
 			if (minA + minG >= water)
@@ -956,11 +958,11 @@ namespace Mode4 {
 
 			if (rotation == 1 + 4)
 			{
-				chR.ComputeChannelLevelsReduced<6, -1, true, gTableLevels2_Value6_U16>(area, 2, kRed, water - minA - minG, 1);
+				chR.ComputeChannelLevelsReduced<6, -1, true, gTableDeltas2_Value6, true>(area, 2, kRed, water - minA - minG);
 			}
 			else
 			{
-				chR.ComputeChannelLevelsReduced<5, -1, true, gTableLevels3_Value5_U16>(area, 2, kRed, water - minA - minG);
+				chR.ComputeChannelLevelsReduced<5, -1, true, gTableDeltas3_Value5>(area, 2, kRed, water - minA - minG);
 			}
 			int minR = chR.MinErr;
 			if (minA + minG + minR >= water)
@@ -968,11 +970,11 @@ namespace Mode4 {
 
 			if (rotation == 3 + 4)
 			{
-				chB.ComputeChannelLevelsReduced<6, -1, true, gTableLevels2_Value6_U16>(area, 3, kBlue, water - minA - minG - minR, 1);
+				chB.ComputeChannelLevelsReduced<6, -1, true, gTableDeltas2_Value6, true>(area, 3, kBlue, water - minA - minG - minR);
 			}
 			else
 			{
-				chB.ComputeChannelLevelsReduced<5, -1, true, gTableLevels3_Value5_U16>(area, 3, kBlue, water - minA - minG - minR);
+				chB.ComputeChannelLevelsReduced<5, -1, true, gTableDeltas3_Value5>(area, 3, kBlue, water - minA - minG - minR);
 			}
 			int minB = chB.MinErr;
 			if (minA + minG + minR + minB >= water)
@@ -998,8 +1000,8 @@ namespace Mode4 {
 
 			const __m128i mrot = GetRotationShuffleNarrow(rotation);
 
-			int memAR[48];
-			int memAGB[48];
+			int memAR[LevelsCapacity];
+			int memAGB[LevelsCapacity];
 
 			for (int iA = 0; iA < nA; iA++)
 			{
