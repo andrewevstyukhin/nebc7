@@ -2,12 +2,6 @@
 #include "pch.h"
 #include "Bc7Pca.h"
 
-#if defined(WIN32)
-#define ALWAYS_INLINED __forceinline
-#else
-#define ALWAYS_INLINED __attribute__((always_inline))
-#endif
-
 #if defined(OPTION_PCA)
 
 #include "SnippetHorizontalSum4.h"

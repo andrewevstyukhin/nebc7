@@ -18,19 +18,19 @@ public:
 
 	Node Err[MaxSize];
 
-	static INLINED int Min(int x, int y) noexcept
+	static ALWAYS_INLINED int Min(int x, int y) noexcept
 	{
 		return (x < y) ? x : y;
 	}
 
-	static INLINED int Max(int x, int y) noexcept
+	static ALWAYS_INLINED int Max(int x, int y) noexcept
 	{
 		return (x > y) ? x : y;
 	}
 
-	INLINED LevelsBuffer() noexcept = default;
+	ALWAYS_INLINED LevelsBuffer() noexcept = default;
 
-	INLINED void SetZeroError(int color) noexcept
+	ALWAYS_INLINED void SetZeroError(int color) noexcept
 	{
 		MinErr = 0;
 		Count = 1;
@@ -384,7 +384,7 @@ public:
 private:
 #if defined(OPTION_AVX512)
 
-	static INLINED void Store8N(NodeShort*& nodesPtr, __m128i msum, uint32_t flags, const int c) noexcept
+	static ALWAYS_INLINED void Store8N(NodeShort*& nodesPtr, __m128i msum, uint32_t flags, const int c) noexcept
 	{
 		for (int i = 0; i < 8; i++)
 		{
@@ -398,7 +398,7 @@ private:
 
 #endif
 
-	static INLINED void Store8(NodeShort*& nodesPtr, __m128i msum, int flags, const int c) noexcept
+	static ALWAYS_INLINED void Store8(NodeShort*& nodesPtr, __m128i msum, int flags, const int c) noexcept
 	{
 		for (int i = 0; i < 8; i++)
 		{
@@ -410,7 +410,7 @@ private:
 		}
 	}
 
-	static INLINED void Store4Full(Node*& nodesPtr, __m128i msum, int flags, const int c) noexcept
+	static ALWAYS_INLINED void Store4Full(Node*& nodesPtr, __m128i msum, int flags, const int c) noexcept
 	{
 		for (int i = 0; i < 4; i++)
 		{
@@ -424,7 +424,7 @@ private:
 
 #if defined(OPTION_AVX512)
 
-	static INLINED void Store8PN(NodeShort*& nodesPtr, __m128i msum, int flags, const int c) noexcept
+	static ALWAYS_INLINED void Store8PN(NodeShort*& nodesPtr, __m128i msum, int flags, const int c) noexcept
 	{
 		for (int i = 0; i < 8; i++)
 		{
@@ -438,7 +438,7 @@ private:
 
 #endif
 
-	static INLINED void Store8P(NodeShort*& nodesPtr, __m128i msum, int flags, const int c) noexcept
+	static ALWAYS_INLINED void Store8P(NodeShort*& nodesPtr, __m128i msum, int flags, const int c) noexcept
 	{
 		for (int i = 0; i < 8; i++)
 		{
@@ -450,7 +450,7 @@ private:
 		}
 	}
 
-	static INLINED void Store4P(NodeShort*& nodesPtr, __m128i msum, int flags, const int c) noexcept
+	static ALWAYS_INLINED void Store4P(NodeShort*& nodesPtr, __m128i msum, int flags, const int c) noexcept
 	{
 		for (int i = 0; i < 4; i++)
 		{
@@ -462,7 +462,7 @@ private:
 		}
 	}
 
-	static INLINED void Store4PFull(Node*& nodesPtr, __m128i msum, int flags, const int c) noexcept
+	static ALWAYS_INLINED void Store4PFull(Node*& nodesPtr, __m128i msum, int flags, const int c) noexcept
 	{
 		for (int i = 0; i < 4; i++)
 		{

@@ -38,65 +38,6 @@ static INLINED int ComputeOpaqueAlphaError(const Area& area) noexcept
 	return error;
 }
 
-static INLINED void ComputeColorCovariances(const Area& area,
-	int64_t& covGR, int64_t& covRB, int64_t& covBG) noexcept
-{
-	__m128i msum = _mm_setzero_si128();
-	__m128i msum2 = _mm_setzero_si128();
-
-	size_t count = area.Count;
-
-	for (size_t i = 0; i < count; i++)
-	{
-		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
-		__m128i mpixel = _mm_cvtepu16_epi32(mpacked);
-
-		msum = _mm_add_epi16(msum, mpixel);
-		msum2 = _mm_add_epi32(msum2, _mm_mullo_epi16(mpixel, _mm_shuffle_epi32(mpixel, _MM_SHUFFLE(1, 3, 2, 0))));
-	}
-
-	__m128i mcount = _mm_shuffle_epi32(_mm_cvtsi64_si128(static_cast<int64_t>(count)), 0);
-
-	msum2 = _mm_sub_epi32(_mm_mullo_epi32(msum2, mcount), _mm_mullo_epi32(msum, _mm_shuffle_epi32(msum, _MM_SHUFFLE(1, 3, 2, 0))));
-
-	covGR = _mm_extract_epi32(msum2, 1);
-	covRB = _mm_extract_epi32(msum2, 2);
-	covBG = _mm_extract_epi32(msum2, 3);
-}
-
-static INLINED void ComputeAlphaColorCovariances(const Area& area,
-	int64_t& covAG, int64_t& covAR, int64_t& covAB, int64_t& covGR, int64_t& covRB, int64_t& covBG) noexcept
-{
-	__m128i msum = _mm_setzero_si128();
-	__m128i msumA = _mm_setzero_si128();
-	__m128i msum2 = _mm_setzero_si128();
-
-	size_t count = area.Active;
-
-	for (size_t i = 0; i < count; i++)
-	{
-		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
-		__m128i mpixel = _mm_cvtepu16_epi32(mpacked);
-
-		msum = _mm_add_epi16(msum, mpixel);
-		msumA = _mm_add_epi32(msumA, _mm_mullo_epi16(mpixel, _mm_shuffle_epi32(mpixel, 0)));
-		msum2 = _mm_add_epi32(msum2, _mm_mullo_epi16(mpixel, _mm_shuffle_epi32(mpixel, _MM_SHUFFLE(1, 3, 2, 0))));
-	}
-
-	__m128i mcount = _mm_shuffle_epi32(_mm_cvtsi64_si128(static_cast<int64_t>(count)), 0);
-
-	msumA = _mm_sub_epi32(_mm_mullo_epi32(msumA, mcount), _mm_mullo_epi32(msum, _mm_shuffle_epi32(msum, 0)));
-	msum2 = _mm_sub_epi32(_mm_mullo_epi32(msum2, mcount), _mm_mullo_epi32(msum, _mm_shuffle_epi32(msum, _MM_SHUFFLE(1, 3, 2, 0))));
-
-	covAG = _mm_extract_epi32(msumA, 1);
-	covAR = _mm_extract_epi32(msumA, 2);
-	covAB = _mm_extract_epi32(msumA, 3);
-
-	covGR = _mm_extract_epi32(msum2, 1);
-	covRB = _mm_extract_epi32(msum2, 2);
-	covBG = _mm_extract_epi32(msum2, 3);
-}
-
 static INLINED void MakeCell(Cell& input) noexcept
 {
 	input.BestColor0 = _mm_setzero_si128();
@@ -105,6 +46,11 @@ static INLINED void MakeCell(Cell& input) noexcept
 	//input.BestParameter = 0;
 	//input.BestMode = 8;
 
+	int flags = 0;
+	int flags_mask = 1;
+
+	__m128i m0 = _mm_set1_epi16(255);
+
 	for (size_t i = 0; i < 16; i++)
 	{
 		__m128i mc = _mm_cvtepu8_epi16(_mm_cvtsi32_si128(((int*)input.ImageRows_U8)[i]));
@@ -112,8 +58,17 @@ static INLINED void MakeCell(Cell& input) noexcept
 
 		mc = _mm_and_si128(mc, mmask);
 
+		flags |= _mm_extract_epi16(mmask, 1) & flags_mask;
+		flags_mask <<= 1;
+
+		m0 = _mm_min_epi16(m0, mc);
+
 		input.DataMask_I16[i] = _mm_unpacklo_epi64(mc, mmask);
 	}
+
+	input.VisibleFlags = flags;
+
+	input.IsOpaque = (_mm_extract_epi16(m0, 0) == 255);
 
 	for (size_t partitionIndex = 0; partitionIndex < 64; partitionIndex++)
 	{
@@ -138,7 +93,7 @@ static INLINED void MakeCell(Cell& input) noexcept
 	}
 }
 
-static NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t count, uint64_t indices) noexcept
+NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t count, uint64_t indices) noexcept
 {
 	// Initialize Indices
 
@@ -146,6 +101,106 @@ static NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size
 
 	area.ZeroIndex = static_cast<uint8_t>(indices & 0xF);
 
+	size_t active;
+
+	__m128i m0 = _mm_set1_epi16(255);
+	__m128i m1 = _mm_setzero_si128();
+
+	const size_t flags = (uint32_t)cell.VisibleFlags;
+	if (flags == 0xFFFF)
+	{
+		__m128i mi = _mm_cvtsi64_si128((int64_t)indices);
+
+		mi = _mm_unpacklo_epi8(mi, _mm_srli_epi16(mi, 4));
+
+		mi = _mm_and_si128(mi, _mm_set1_epi8(0xF));
+
+		_mm_store_si128((__m128i*)area.Indices, mi);
+
+		active = count;
+
+		if (cell.IsOpaque)
+		{
+			area.Active = static_cast<uint32_t>(active);
+
+			// Min & Max + ComputeColorCovariances
+
+			__m128i msum = _mm_setzero_si128();
+			__m128i msum2 = _mm_setzero_si128();
+
+			for (size_t i = 0; i < active; i++)
+			{
+				size_t index = area.Indices[i];
+
+				__m128i mpacked = _mm_load_si128(&cell.DataMask_I16[index]);
+
+				m0 = _mm_min_epi16(m0, mpacked);
+				m1 = _mm_max_epi16(m1, mpacked);
+
+				__m128i mpixel = _mm_cvtepu16_epi32(mpacked);
+
+				msum = _mm_add_epi16(msum, mpixel);
+				msum2 = _mm_add_epi32(msum2, _mm_mullo_epi16(mpixel, _mm_shuffle_epi32(mpixel, _MM_SHUFFLE(1, 3, 2, 0))));
+
+				area.DataMask_I16[i] = mpacked;
+			}
+
+			__m128i mbounds = _mm_unpacklo_epi16(m0, m1);
+
+			_mm_store_si128(&area.MinMax_U16, mbounds);
+
+			// Flags
+
+			area.IsOpaque = true;
+
+			area.BestPca3 = -1;
+
+			// Orient channels
+
+			__m128i mactive = _mm_shuffle_epi32(_mm_cvtsi64_si128(static_cast<int64_t>(active)), 0);
+
+			msum2 = _mm_sub_epi32(_mm_mullo_epi32(msum2, mactive), _mm_mullo_epi32(msum, _mm_shuffle_epi32(msum, _MM_SHUFFLE(1, 3, 2, 0))));
+
+			int64_t covGR = _mm_extract_epi32(msum2, 1);
+			int64_t covRB = _mm_extract_epi32(msum2, 2);
+			int64_t covBG = _mm_extract_epi32(msum2, 3);
+
+			for (;;)
+			{
+				bool changes = false;
+
+				int64_t b = covBG * kGreen + covRB * kRed;
+				if (b < 0)
+				{
+					mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
+
+					covBG = -covBG;
+					covRB = -covRB;
+
+					changes = true;
+				}
+
+				int64_t r = covGR * kGreen + covRB * kBlue;
+				if (r < 0)
+				{
+					mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(3, 2, 0, 1));
+
+					covGR = -covGR;
+					covRB = -covRB;
+
+					changes = true;
+				}
+
+				if (!changes)
+					break;
+			}
+
+			_mm_store_si128(&area.Bounds_U16, mbounds);
+
+			return;
+		}
+	}
+	else
 	{
 		uint8_t TransparentIndices[16];
 
@@ -157,39 +212,55 @@ static NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size
 			const size_t index = indices & 0xF;
 			indices >>= 4;
 
-			size_t opaque = ((const uint16_t*)&cell.DataMask_I16[index])[4 + 1] & 1;
+			*pOpaque = static_cast<uint8_t>(index);
+			*pTransparent = static_cast<uint8_t>(index);
 
-			*(opaque ? pOpaque : pTransparent) = static_cast<uint8_t>(index);
+			size_t opaque = (flags >> index) & 1;
 
-			pTransparent++;
 			pOpaque += opaque;
-			pTransparent -= opaque;
+			pTransparent += opaque ^ 1;
 		}
 
-		area.Active = static_cast<uint32_t>(pOpaque - area.Indices);
+		active = pOpaque - area.Indices;
 
-		uint8_t* p = TransparentIndices;
-		while (p != pTransparent)
+		if (active < count)
 		{
-			*pOpaque++ = *p++;
+			m0 = _mm_insert_epi16(m0, 0, 0);
+
+			const __m128i mempty = _mm_set_epi16(0, 0, 0, -1, 0, 0, 0, 0);
+
+			__m128i* pData = &area.DataMask_I16[active];
+			uint8_t* pIndex = TransparentIndices;
+			do
+			{
+				*pOpaque++ = *pIndex++;
+				*pData++ = mempty;
+			} while (pIndex != pTransparent);
 		}
 	}
 
-	// Min & Max
+	area.Active = static_cast<uint32_t>(active);
 
-	__m128i m0 = _mm_set1_epi16(255);
-	__m128i m1 = _mm_setzero_si128();
+	// Min & Max + ComputeAlphaColorCovariances
 
-	for (size_t i = 0; i < count; i++)
+	__m128i msum = _mm_setzero_si128();
+	__m128i msum2 = _mm_setzero_si128();
+	__m128i msumA = _mm_setzero_si128();
+
+	for (size_t i = 0; i < active; i++)
 	{
 		size_t index = area.Indices[i];
 
 		__m128i mpacked = _mm_load_si128(&cell.DataMask_I16[index]);
-		__m128i mc = _mm_unpacklo_epi64(mpacked, mpacked);
-		__m128i mmask = _mm_unpackhi_epi64(mpacked, mpacked);
 
-		m0 = _mm_blendv_epi8(m0, _mm_min_epi16(mc, m0), mmask);
-		m1 = _mm_max_epi16(m1, mc);
+		m0 = _mm_min_epi16(m0, mpacked);
+		m1 = _mm_max_epi16(m1, mpacked);
+
+		__m128i mpixel = _mm_cvtepu16_epi32(mpacked);
+
+		msum = _mm_add_epi16(msum, mpixel);
+		msum2 = _mm_add_epi32(msum2, _mm_mullo_epi16(mpixel, _mm_shuffle_epi32(mpixel, _MM_SHUFFLE(1, 3, 2, 0))));
+		msumA = _mm_add_epi32(msumA, _mm_mullo_epi16(mpixel, _mm_shuffle_epi32(mpixel, 0)));
 
 		area.DataMask_I16[i] = mpacked;
 	}
@@ -202,16 +273,21 @@ static NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size
 
 	// Flags
 
-	area.IsOpaque = ((_mm_extract_epi16(mbounds, 0) & _mm_extract_epi16(mbounds, 1)) == 255);
+	area.IsOpaque = (_mm_extract_epi16(mbounds, 0) == 255);
 
 	area.BestPca3 = -1;
 
 	// Orient channels
 
+	__m128i mactive = _mm_shuffle_epi32(_mm_cvtsi64_si128(static_cast<int64_t>(active)), 0);
+
 	if (area.IsOpaque)
 	{
-		int64_t covGR = 0, covRB = 0, covBG = 0;
-		ComputeColorCovariances(area, covGR, covRB, covBG);
+		msum2 = _mm_sub_epi32(_mm_mullo_epi32(msum2, mactive), _mm_mullo_epi32(msum, _mm_shuffle_epi32(msum, _MM_SHUFFLE(1, 3, 2, 0))));
+
+		int64_t covGR = _mm_extract_epi32(msum2, 1);
+		int64_t covRB = _mm_extract_epi32(msum2, 2);
+		int64_t covBG = _mm_extract_epi32(msum2, 3);
 
 		for (;;)
 		{
@@ -245,8 +321,16 @@ static NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size
 	}
 	else
 	{
-		int64_t covAG = 0, covAR = 0, covAB = 0, covGR = 0, covRB = 0, covBG = 0;
-		ComputeAlphaColorCovariances(area, covAG, covAR, covAB, covGR, covRB, covBG);
+		msum2 = _mm_sub_epi32(_mm_mullo_epi32(msum2, mactive), _mm_mullo_epi32(msum, _mm_shuffle_epi32(msum, _MM_SHUFFLE(1, 3, 2, 0))));
+		msumA = _mm_sub_epi32(_mm_mullo_epi32(msumA, mactive), _mm_mullo_epi32(msum, _mm_shuffle_epi32(msum, 0)));
+
+		int64_t covGR = _mm_extract_epi32(msum2, 1);
+		int64_t covRB = _mm_extract_epi32(msum2, 2);
+		int64_t covBG = _mm_extract_epi32(msum2, 3);
+
+		int64_t covAG = _mm_extract_epi32(msumA, 1);
+		int64_t covAR = _mm_extract_epi32(msumA, 2);
+		int64_t covAB = _mm_extract_epi32(msumA, 3);
 
 		for (;;)
 		{
@@ -294,18 +378,6 @@ static NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size
 	}
 
 	_mm_store_si128(&area.Bounds_U16, mbounds);
-}
-
-Area& GetArea(Area& area, bool& lazy, const Cell& cell, const uint64_t indices) noexcept
-{
-	if (lazy)
-	{
-		lazy = false;
-
-		MakeAreaFromCell(area, cell, indices & 0xF, indices >> 4);
-	}
-
-	return area;
 }
 
 int AreaGetBestPca3(Area& area) noexcept

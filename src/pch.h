@@ -28,12 +28,13 @@
 #endif
 
 #if defined(WIN32)
-#define INLINED __forceinline
+#define ALWAYS_INLINED __forceinline
 #define NOTINLINED __declspec(noinline)
 #else
-#define INLINED __attribute__((always_inline))
+#define ALWAYS_INLINED __attribute__((always_inline))
 #define NOTINLINED __attribute__((noinline))
 #endif
+#define INLINED ALWAYS_INLINED
 
 #define PRINTF(...) printf(__VA_ARGS__); printf("\n");
 

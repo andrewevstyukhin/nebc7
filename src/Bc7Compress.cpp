@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-static INLINED int Max(int x, int y) noexcept
+static ALWAYS_INLINED int Max(int x, int y) noexcept
 {
 	return (x > y) ? x : y;
 }

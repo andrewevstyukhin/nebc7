@@ -19,7 +19,7 @@ namespace Mode3 {
 	static std::atomic_int gComputeSubsetError2, gComputeSubsetError2GR, gComputeSubsetError2GB;
 #endif
 
-	static INLINED int Max(int x, int y) noexcept
+	static ALWAYS_INLINED int Max(int x, int y) noexcept
 	{
 		return (x > y) ? x : y;
 	}
@@ -199,7 +199,7 @@ namespace Mode3 {
 	public:
 		LevelsBuffer<LevelsCapacity> ch1, ch2, ch3;
 
-		INLINED Subset() noexcept = default;
+		ALWAYS_INLINED Subset() noexcept = default;
 
 		template<int pbits>
 		INLINED bool InitLevels(const Area& area, const int water, const Estimation& estimation) noexcept
@@ -334,7 +334,7 @@ namespace Mode3 {
 		bool valid1 = false;
 		bool valid2 = false;
 
-		INLINED Subsets() noexcept = default;
+		ALWAYS_INLINED Subsets() noexcept = default;
 
 		INLINED bool InitLevels(const Area& area, const int water, const Estimation& estimation) noexcept
 		{

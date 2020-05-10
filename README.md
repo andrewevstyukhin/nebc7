@@ -21,7 +21,7 @@ Recompressing "BC7Ltest.png" (gained from https://code.google.com/archive/p/nvid
     Bc7Compress.exe /slow /nomask /noflip BC7Ltest.png output.ktx /debug output.png
     Loaded BC7Ltest.png
       Image 152x152, Texture 152x152
-        Compressed 1444 blocks, elapsed 36 ms, throughput 0.641 Mpx/s
+        Compressed 1444 blocks, elapsed 26 ms, throughput 0.888 Mpx/s
           SubTexture A MSE = 0.0, PSNR = 73.986163, SSIM_4x4 = 0.99999923
           SubTexture RGB wMSE = 0.0, wPSNR = 62.172358, wSSIM_4x4 = 0.99999238
         Saved output.ktx
@@ -32,7 +32,7 @@ Compressing "frymire.png" (gained from https://github.com/castano/nvidia-texture
     Bc7Compress.exe /nomask /noflip frymire.png frymire.ktx
     Loaded frymire.png
       Image 1118x1105, Texture 1120x1108
-        Compressed 77560 blocks, elapsed 498 ms, throughput 2.491 Mpx/s
+        Compressed 77560 blocks, elapsed 449 ms, throughput 2.763 Mpx/s
           Exactly A
           SubTexture RGB wMSE = 0.2, wPSNR = 55.181449, wSSIM_4x4 = 0.99980677
         Saved frymire.ktx
@@ -42,7 +42,7 @@ Compressing "frymire.png" in development mode:
     Bc7Compress.exe /draft /nomask /noflip frymire.png frymire.ktx
     Loaded frymire.png
       Image 1118x1105, Texture 1120x1108
-        Compressed 77560 blocks, elapsed 188 ms, throughput 6.600 Mpx/s
+        Compressed 77560 blocks, elapsed 141 ms, throughput 8.801 Mpx/s
           Exactly A
           SubTexture RGB wMSE = 0.4, wPSNR = 52.056761, wSSIM_4x4 = 0.99952034
         Saved frymire.ktx
@@ -52,7 +52,7 @@ Compressing "8192.png" (gained from https://bitbucket.org/wolfpld/etcpak/downloa
     Bc7Compress.exe /draft /nomask /noflip 8192.png 8192.ktx
     Loaded 8192.png
       Image 8192x8192, Texture 8192x8192
-        Compressed 4194304 blocks, elapsed 16770 ms, throughput 4.001 Mpx/s
+        Compressed 4194304 blocks, elapsed 12377 ms, throughput 5.422 Mpx/s
           Exactly A
           SubTexture RGB wMSE = 0.4, wPSNR = 52.364416, wSSIM_4x4 = 0.99625929
         Saved 8192.ktx

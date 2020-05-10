@@ -117,6 +117,76 @@ namespace Mode6 {
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
+#if defined(OPTION_AVX2)
+		const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
+
+		const __m256i vhalf = _mm256_set1_epi16(32);
+		const __m256i vsign = _mm256_set1_epi16(-0x8000);
+
+		mc = _mm_packus_epi16(mc, mc);
+		__m256i vc = _mm256_broadcastsi128_si256(mc);
+
+		__m256i vtx = *(const __m256i*)&gTableInterpolate4_U8[0];
+		__m256i vty = *(const __m256i*)&gTableInterpolate4_U8[2];
+		__m256i vtz = *(const __m256i*)&gTableInterpolate4_U8[4];
+		__m256i vtw = *(const __m256i*)&gTableInterpolate4_U8[6];
+
+		vtx = _mm256_maddubs_epi16(vc, vtx);
+		vty = _mm256_maddubs_epi16(vc, vty);
+		vtz = _mm256_maddubs_epi16(vc, vtz);
+		vtw = _mm256_maddubs_epi16(vc, vtw);
+
+		vtx = _mm256_add_epi16(vtx, vhalf);
+		vty = _mm256_add_epi16(vty, vhalf);
+		vtz = _mm256_add_epi16(vtz, vhalf);
+		vtw = _mm256_add_epi16(vtw, vhalf);
+
+		vtx = _mm256_srli_epi16(vtx, 6);
+		vty = _mm256_srli_epi16(vty, 6);
+		vtz = _mm256_srli_epi16(vtz, 6);
+		vtw = _mm256_srli_epi16(vtw, 6);
+
+		for (size_t i = 0, n = area.Active; i < n; i++)
+		{
+			__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
+			__m256i vpixel = _mm256_broadcastq_epi64(mpacked);
+
+			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
+
+			__m256i vx = _mm256_sub_epi16(vpixel, vtx);
+			__m256i vy = _mm256_sub_epi16(vpixel, vty);
+			__m256i vz = _mm256_sub_epi16(vpixel, vtz);
+			__m256i vw = _mm256_sub_epi16(vpixel, vtw);
+
+			vx = _mm256_mullo_epi16(vx, vx);
+			vy = _mm256_mullo_epi16(vy, vy);
+			vz = _mm256_mullo_epi16(vz, vz);
+			vw = _mm256_mullo_epi16(vw, vw);
+
+			vx = _mm256_xor_si256(vx, vsign);
+			vy = _mm256_xor_si256(vy, vsign);
+			vz = _mm256_xor_si256(vz, vsign);
+			vw = _mm256_xor_si256(vw, vsign);
+
+			vx = _mm256_madd_epi16(vx, vweights);
+			vy = _mm256_madd_epi16(vy, vweights);
+			vz = _mm256_madd_epi16(vz, vweights);
+			vw = _mm256_madd_epi16(vw, vweights);
+
+			vx = _mm256_add_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+			vy = _mm256_add_epi32(vy, _mm256_shuffle_epi32(vy, _MM_SHUFFLE(2, 3, 0, 1)));
+			vz = _mm256_add_epi32(vz, _mm256_shuffle_epi32(vz, _MM_SHUFFLE(2, 3, 0, 1)));
+			vw = _mm256_add_epi32(vw, _mm256_shuffle_epi32(vw, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			vx = _mm256_min_epi32(_mm256_min_epi32(vx, vy), _mm256_min_epi32(vz, vw));
+			vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm_min_epi32(_mm256_extracti128_si256(vx, 1), _mm256_castsi256_si128(vx)));
+
+			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+				break;
+		}
+#else
 		const __m128i mhalf = _mm_set1_epi16(32);
 		const __m128i msign = _mm_set1_epi16(-0x8000);
 
@@ -162,7 +232,6 @@ namespace Mode6 {
 		{
 			__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 			__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
-			__m128i mmask = _mm_unpackhi_epi64(mpacked, mpacked);
 
 			__m128i mx = _mm_sub_epi16(mpixel, mtx);
 			__m128i my = _mm_sub_epi16(mpixel, mty);
@@ -173,11 +242,6 @@ namespace Mode6 {
 			my = _mm_mullo_epi16(my, my);
 			mz = _mm_mullo_epi16(mz, mz);
 			mw = _mm_mullo_epi16(mw, mw);
-
-			mx = _mm_and_si128(mx, mmask);
-			my = _mm_and_si128(my, mmask);
-			mz = _mm_and_si128(mz, mmask);
-			mw = _mm_and_si128(mw, mmask);
 
 			mx = _mm_xor_si128(mx, msign);
 			my = _mm_xor_si128(my, msign);
@@ -210,11 +274,6 @@ namespace Mode6 {
 			mz = _mm_mullo_epi16(mz, mz);
 			mw = _mm_mullo_epi16(mw, mw);
 
-			mx = _mm_and_si128(mx, mmask);
-			my = _mm_and_si128(my, mmask);
-			mz = _mm_and_si128(mz, mmask);
-			mw = _mm_and_si128(mw, mmask);
-
 			mx = _mm_xor_si128(mx, msign);
 			my = _mm_xor_si128(my, msign);
 			mz = _mm_xor_si128(mz, msign);
@@ -241,6 +300,7 @@ namespace Mode6 {
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
 				break;
 		}
+#endif
 
 		return _mm_cvtsi128_si32(merrorBlock);
 	}
@@ -250,6 +310,105 @@ namespace Mode6 {
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
+#if defined(OPTION_AVX2)
+		const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
+
+		const __m256i vhalf = _mm256_set1_epi16(32);
+		const __m256i vsign = _mm256_set1_epi16(-0x8000);
+		const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
+
+		mc = _mm_shuffle_epi32(mc, shuffle);
+		mc = _mm_packus_epi16(mc, mc);
+		__m256i vc = _mm256_broadcastsi128_si256(mc);
+
+		__m256i vt0 = *(const __m256i*)&gTableInterpolate4GR_U8[0];
+		__m256i vt1 = *(const __m256i*)&gTableInterpolate4GR_U8[2];
+
+		vt0 = _mm256_maddubs_epi16(vc, vt0);
+		vt1 = _mm256_maddubs_epi16(vc, vt1);
+
+		vt0 = _mm256_add_epi16(vt0, vhalf);
+		vt1 = _mm256_add_epi16(vt1, vhalf);
+
+		vt0 = _mm256_srli_epi16(vt0, 6);
+		vt1 = _mm256_srli_epi16(vt1, 6);
+
+		__m256i vtx = _mm256_permute4x64_epi64(vt0, 0x44);
+		__m256i vty = _mm256_permute4x64_epi64(vt0, 0xEE);
+		__m256i vtz = _mm256_permute4x64_epi64(vt1, 0x44);
+		__m256i vtw = _mm256_permute4x64_epi64(vt1, 0xEE);
+
+		int k = static_cast<int>(area.Active);
+		const __m256i* p = (const __m256i*)area.DataMask_I16;
+
+		while ((k -= 2) >= 0)
+		{
+			__m256i vpacked = _mm256_load_si256(p);
+			__m256i vpixel = _mm256_shufflelo_epi16(vpacked, shuffle);
+			vpixel = _mm256_unpacklo_epi64(vpixel, vpixel);
+
+			merrorBlock = _mm_add_epi32(merrorBlock, mfix2);
+
+			__m256i vx = _mm256_sub_epi16(vpixel, vtx);
+			__m256i vy = _mm256_sub_epi16(vpixel, vty);
+			__m256i vz = _mm256_sub_epi16(vpixel, vtz);
+			__m256i vw = _mm256_sub_epi16(vpixel, vtw);
+
+			vx = _mm256_mullo_epi16(vx, vx);
+			vy = _mm256_mullo_epi16(vy, vy);
+			vz = _mm256_mullo_epi16(vz, vz);
+			vw = _mm256_mullo_epi16(vw, vw);
+
+			vx = _mm256_xor_si256(vx, vsign);
+			vy = _mm256_xor_si256(vy, vsign);
+			vz = _mm256_xor_si256(vz, vsign);
+			vw = _mm256_xor_si256(vw, vsign);
+
+			vx = _mm256_madd_epi16(vx, vweights);
+			vy = _mm256_madd_epi16(vy, vweights);
+			vz = _mm256_madd_epi16(vz, vweights);
+			vw = _mm256_madd_epi16(vw, vweights);
+
+			vx = _mm256_min_epi32(_mm256_min_epi32(vx, vy), _mm256_min_epi32(vz, vw));
+			vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+			vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
+
+			p++;
+
+			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+				break;
+		}
+
+		if (k & 1)
+		{
+			__m128i mpacked = _mm_load_si128((const __m128i*)p);
+			__m128i mpixel = _mm_shufflelo_epi16(mpacked, shuffle);
+			__m256i vpixel = _mm256_broadcastq_epi64(mpixel);
+
+			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
+
+			__m256i vx = _mm256_sub_epi16(vpixel, vt0);
+			__m256i vy = _mm256_sub_epi16(vpixel, vt1);
+
+			vx = _mm256_mullo_epi16(vx, vx);
+			vy = _mm256_mullo_epi16(vy, vy);
+
+			vx = _mm256_xor_si256(vx, vsign);
+			vy = _mm256_xor_si256(vy, vsign);
+
+			vx = _mm256_madd_epi16(vx, vweights);
+			vy = _mm256_madd_epi16(vy, vweights);
+
+			vx = _mm256_min_epi32(vx, vy);
+			vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+			vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm_min_epi32(_mm256_extracti128_si256(vx, 1), _mm256_castsi256_si128(vx)));
+		}
+#else
 		const __m128i mhalf = _mm_set1_epi16(32);
 		const __m128i msign = _mm_set1_epi16(-0x8000);
 
@@ -280,9 +439,7 @@ namespace Mode6 {
 		{
 			__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 			__m128i mpixel = _mm_shufflelo_epi16(mpacked, shuffle);
-			__m128i mmask = _mm_shufflehi_epi16(mpacked, shuffle);
 			mpixel = _mm_unpacklo_epi64(mpixel, mpixel);
-			mmask = _mm_unpackhi_epi64(mmask, mmask);
 
 			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
 
@@ -295,11 +452,6 @@ namespace Mode6 {
 			my = _mm_mullo_epi16(my, my);
 			mz = _mm_mullo_epi16(mz, mz);
 			mw = _mm_mullo_epi16(mw, mw);
-
-			mx = _mm_and_si128(mx, mmask);
-			my = _mm_and_si128(my, mmask);
-			mz = _mm_and_si128(mz, mmask);
-			mw = _mm_and_si128(mw, mmask);
 
 			mx = _mm_xor_si128(mx, msign);
 			my = _mm_xor_si128(my, msign);
@@ -322,6 +474,7 @@ namespace Mode6 {
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
 				break;
 		}
+#endif
 
 		return _mm_cvtsi128_si32(merrorBlock);
 	}
@@ -459,7 +612,7 @@ namespace Mode6 {
 	public:
 		LevelsBuffer<LevelsCapacity> ch0, ch1, ch2, ch3;
 
-		INLINED Subset() noexcept = default;
+		ALWAYS_INLINED Subset() noexcept = default;
 
 		template<int pbits>
 		INLINED bool InitLevels(const Area& area, const int water) noexcept

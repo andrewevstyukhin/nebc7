@@ -17,7 +17,7 @@ namespace Mode5 {
 	static std::atomic_int gComputeSubsetError2[4], gComputeSubsetError2AG[4], gComputeSubsetError2AR[4], gComputeSubsetError2AGR[4], gComputeSubsetError2AGB[4];
 #endif
 
-	static INLINED __m128i GetRotationShuffle(int rotation) noexcept
+	static ALWAYS_INLINED __m128i GetRotationShuffle(int rotation) noexcept
 	{
 		__m128i mrot = _mm_set_epi8(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
 
@@ -43,7 +43,7 @@ namespace Mode5 {
 		return mrot;
 	}
 
-	static INLINED __m128i GetRotationShuffleNarrow(int rotation) noexcept
+	static ALWAYS_INLINED __m128i GetRotationShuffleNarrow(int rotation) noexcept
 	{
 		__m128i mrot = _mm_set_epi8(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
 
@@ -167,6 +167,93 @@ namespace Mode5 {
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
+#if defined(OPTION_AVX2)
+		const __m256i vrot = _mm256_broadcastsi128_si256(GetRotationShuffleNarrow(rotation));
+		const __m256i vhalf = _mm256_set1_epi16(32);
+		const __m256i vsign = _mm256_set1_epi16(-0x8000);
+		const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
+		const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
+
+		mc = _mm_packus_epi16(mc, mc);
+		__m256i vc = _mm256_broadcastsi128_si256(mc);
+
+		const __m256i vmask3 = _mm256_shuffle_epi8(_mm256_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0), vrot);
+		const __m256i vweights3 = _mm256_and_si256(vweights, vmask3);
+		const __m256i vweights1 = _mm256_shuffle_epi8(_mm256_andnot_si256(vmask3, vweights), vrot);
+
+		vc = _mm256_shuffle_epi8(vc, vrot);
+
+		__m256i vt0 = *(const __m256i*)&gTableInterpolate2_U8[0];
+		__m256i vt1 = *(const __m256i*)&gTableInterpolate2_U8[2];
+
+		vt0 = _mm256_maddubs_epi16(vc, vt0);
+		vt1 = _mm256_maddubs_epi16(vc, vt1);
+
+		vt0 = _mm256_add_epi16(vt0, vhalf);
+		vt1 = _mm256_add_epi16(vt1, vhalf);
+
+		vt0 = _mm256_srli_epi16(vt0, 6);
+		vt1 = _mm256_srli_epi16(vt1, 6);
+
+		__m256i vtx = _mm256_permute4x64_epi64(vt0, 0x44);
+		__m256i vty = _mm256_permute4x64_epi64(vt0, 0xEE);
+		__m256i vtz = _mm256_permute4x64_epi64(vt1, 0x44);
+		__m256i vtw = _mm256_permute4x64_epi64(vt1, 0xEE);
+
+		const __m256i* p = (const __m256i*)area.DataMask_I16;
+
+		for (size_t i = 0; i < 16; i += 2)
+		{
+			__m256i vpacked = _mm256_load_si256(p);
+			__m256i vpixel = _mm256_unpacklo_epi64(vpacked, vpacked);
+			__m256i vmask = _mm256_unpackhi_epi64(vpacked, vpacked);
+
+			merrorBlock = _mm_add_epi32(merrorBlock, mfix2);
+
+			__m256i vx = _mm256_sub_epi16(vpixel, vtx);
+			__m256i vy = _mm256_sub_epi16(vpixel, vty);
+			__m256i vz = _mm256_sub_epi16(vpixel, vtz);
+			__m256i vw = _mm256_sub_epi16(vpixel, vtw);
+
+			vx = _mm256_mullo_epi16(vx, vx);
+			vy = _mm256_mullo_epi16(vy, vy);
+			vz = _mm256_mullo_epi16(vz, vz);
+			vw = _mm256_mullo_epi16(vw, vw);
+
+			vx = _mm256_and_si256(vx, vmask);
+			vy = _mm256_and_si256(vy, vmask);
+			vz = _mm256_and_si256(vz, vmask);
+			vw = _mm256_and_si256(vw, vmask);
+
+			vx = _mm256_xor_si256(vx, vsign);
+			vy = _mm256_xor_si256(vy, vsign);
+			vz = _mm256_xor_si256(vz, vsign);
+			vw = _mm256_xor_si256(vw, vsign);
+
+			__m256i va = _mm256_shuffle_epi8(_mm256_min_epi16(vx, vy), vrot);
+
+			vx = _mm256_madd_epi16(vx, vweights3);
+			vy = _mm256_madd_epi16(vy, vweights3);
+			va = _mm256_madd_epi16(va, vweights1);
+
+			vx = _mm256_add_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+			vy = _mm256_add_epi32(vy, _mm256_shuffle_epi32(vy, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			vx = _mm256_min_epi32(vx, vy);
+			va = _mm256_min_epi32(va, _mm256_shuffle_epi32(va, _MM_SHUFFLE(1, 0, 3, 2)));
+			vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			vx = _mm256_add_epi32(vx, va);
+
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
+
+			p++;
+
+			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+				break;
+		}
+#else
 		const __m128i mrot = GetRotationShuffleNarrow(rotation);
 		const __m128i mhalf = _mm_set1_epi16(32);
 		const __m128i msign = _mm_set1_epi16(-0x8000);
@@ -230,6 +317,7 @@ namespace Mode5 {
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
 				break;
 		}
+#endif
 
 		return _mm_cvtsi128_si32(merrorBlock);
 	}
@@ -408,7 +496,7 @@ namespace Mode5 {
 	public:
 		LevelsBuffer<LevelsCapacity> chA, chG, chR, chB;
 
-		INLINED Subset() noexcept = default;
+		ALWAYS_INLINED Subset() noexcept = default;
 
 		INLINED bool InitLevels(const Area& area, const int water, const int rotation) noexcept
 		{

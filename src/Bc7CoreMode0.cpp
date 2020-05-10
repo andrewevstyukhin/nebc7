@@ -239,7 +239,7 @@ namespace Mode0 {
 	public:
 		LevelsBuffer<LevelsCapacity> ch1, ch2, ch3;
 
-		INLINED Subset() noexcept = default;
+		ALWAYS_INLINED Subset() noexcept = default;
 
 		template<int pbits>
 		INLINED bool InitLevels(const Area& area, const int water, const Estimation& estimation) noexcept
@@ -374,7 +374,7 @@ namespace Mode0 {
 		bool valid1 = false;
 		bool valid2 = false;
 
-		INLINED Subsets() noexcept = default;
+		ALWAYS_INLINED Subsets() noexcept = default;
 
 		INLINED bool InitLevels(const Area& area, const int water, const Estimation& estimation) noexcept
 		{

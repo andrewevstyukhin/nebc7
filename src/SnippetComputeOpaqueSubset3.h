@@ -8,37 +8,92 @@ static INLINED int ComputeOpaqueSubsetError3(const Area& area, __m128i mc, const
 {
 	__m128i merrorBlock = _mm_setzero_si128();
 
-#if defined(OPTION_AVX2)
-	const __m256i vweights = _mm256_broadcastsi128_si256(gWeightsGRB);
+	const __m128i mweights = gWeightsGRB;
 	const __m128i mfix = gFixWeightsGRB;
+
+#if defined(OPTION_AVX2)
+	const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
 	const __m256i vsign = _mm256_set1_epi16(-0x8000);
+	const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
 
 	mc = _mm_packus_epi16(mc, mc);
 	__m256i vc = _mm256_broadcastsi128_si256(mc);
 
-	__m256i vtx = *(const __m256i*)&gTableInterpolate3_U8[0];
-	__m256i vty = *(const __m256i*)&gTableInterpolate3_U8[2];
+	__m256i vt0 = *(const __m256i*)&gTableInterpolate3_U8[0];
+	__m256i vt1 = *(const __m256i*)&gTableInterpolate3_U8[2];
 
-	vtx = _mm256_maddubs_epi16(vc, vtx);
-	vty = _mm256_maddubs_epi16(vc, vty);
+	vt0 = _mm256_maddubs_epi16(vc, vt0);
+	vt1 = _mm256_maddubs_epi16(vc, vt1);
 
-	vtx = _mm256_add_epi16(vtx, vhalf);
-	vty = _mm256_add_epi16(vty, vhalf);
+	vt0 = _mm256_add_epi16(vt0, vhalf);
+	vt1 = _mm256_add_epi16(vt1, vhalf);
 
-	vtx = _mm256_srli_epi16(vtx, 6);
-	vty = _mm256_srli_epi16(vty, 6);
+	vt0 = _mm256_srli_epi16(vt0, 6);
+	vt1 = _mm256_srli_epi16(vt1, 6);
 
-	for (size_t i = 0, n = area.Count; i < n; i++)
+	__m256i vtx = _mm256_permute4x64_epi64(vt0, 0x44);
+	__m256i vty = _mm256_permute4x64_epi64(vt0, 0xEE);
+	__m256i vtz = _mm256_permute4x64_epi64(vt1, 0x44);
+	__m256i vtw = _mm256_permute4x64_epi64(vt1, 0xEE);
+
+	int k = static_cast<int>(area.Count);
+	const __m256i* p = (const __m256i*)area.DataMask_I16;
+
+	while ((k -= 2) >= 0)
 	{
-		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
+		__m256i vpacked = _mm256_load_si256(p);
+		__m256i vpixel = _mm256_unpacklo_epi64(vpacked, vpacked);
+
+		merrorBlock = _mm_add_epi32(merrorBlock, mfix2);
+
+		__m256i vx = _mm256_sub_epi16(vpixel, vtx);
+		__m256i vy = _mm256_sub_epi16(vpixel, vty);
+		__m256i vz = _mm256_sub_epi16(vpixel, vtz);
+		__m256i vw = _mm256_sub_epi16(vpixel, vtw);
+
+		vx = _mm256_mullo_epi16(vx, vx);
+		vy = _mm256_mullo_epi16(vy, vy);
+		vz = _mm256_mullo_epi16(vz, vz);
+		vw = _mm256_mullo_epi16(vw, vw);
+
+		vx = _mm256_xor_si256(vx, vsign);
+		vy = _mm256_xor_si256(vy, vsign);
+		vz = _mm256_xor_si256(vz, vsign);
+		vw = _mm256_xor_si256(vw, vsign);
+
+		vx = _mm256_madd_epi16(vx, vweights);
+		vy = _mm256_madd_epi16(vy, vweights);
+		vz = _mm256_madd_epi16(vz, vweights);
+		vw = _mm256_madd_epi16(vw, vweights);
+
+		vx = _mm256_add_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+		vy = _mm256_add_epi32(vy, _mm256_shuffle_epi32(vy, _MM_SHUFFLE(2, 3, 0, 1)));
+		vz = _mm256_add_epi32(vz, _mm256_shuffle_epi32(vz, _MM_SHUFFLE(2, 3, 0, 1)));
+		vw = _mm256_add_epi32(vw, _mm256_shuffle_epi32(vw, _MM_SHUFFLE(2, 3, 0, 1)));
+
+		vx = _mm256_min_epi32(_mm256_min_epi32(vx, vy), _mm256_min_epi32(vz, vw));
+		vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+		merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
+		merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
+
+		p++;
+
+		if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+			break;
+	}
+
+	if (k & 1)
+	{
+		__m128i mpacked = _mm_load_si128((const __m128i*)p);
 		__m256i vpixel = _mm256_broadcastq_epi64(mpacked);
 
 		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
 
-		__m256i vx = _mm256_sub_epi16(vpixel, vtx);
-		__m256i vy = _mm256_sub_epi16(vpixel, vty);
+		__m256i vx = _mm256_sub_epi16(vpixel, vt0);
+		__m256i vy = _mm256_sub_epi16(vpixel, vt1);
 
 		vx = _mm256_mullo_epi16(vx, vx);
 		vy = _mm256_mullo_epi16(vy, vy);
@@ -56,15 +111,10 @@ static INLINED int ComputeOpaqueSubsetError3(const Area& area, __m128i mc, const
 		vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
 
 		merrorBlock = _mm_add_epi32(merrorBlock, _mm_min_epi32(_mm256_extracti128_si256(vx, 1), _mm256_castsi256_si128(vx)));
-
-		if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-			break;
 	}
 #else
 	const __m128i mhalf = _mm_set1_epi16(32);
 	const __m128i msign = _mm_set1_epi16(-0x8000);
-	const __m128i mweights = gWeightsGRB;
-	const __m128i mfix = gFixWeightsGRB;
 
 	mc = _mm_packus_epi16(mc, mc);
 
@@ -120,9 +170,7 @@ static INLINED int ComputeOpaqueSubsetError3(const Area& area, __m128i mc, const
 		mz = _mm_add_epi32(mz, _mm_shuffle_epi32(mz, _MM_SHUFFLE(2, 3, 0, 1)));
 		mw = _mm_add_epi32(mw, _mm_shuffle_epi32(mw, _MM_SHUFFLE(2, 3, 0, 1)));
 
-		mx = _mm_min_epi32(mx, my);
-		mz = _mm_min_epi32(mz, mw);
-		mx = _mm_min_epi32(mx, mz);
+		mx = _mm_min_epi32(_mm_min_epi32(mx, my), _mm_min_epi32(mz, mw));
 		mx = _mm_min_epi32(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(1, 0, 3, 2)));
 
 		merrorBlock = _mm_add_epi32(merrorBlock, mx);
@@ -145,7 +193,7 @@ static INLINED int ComputeOpaqueSubsetError3Pair(const Area& area, __m128i mc, c
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
 	const __m256i vsign = _mm256_set1_epi16(-0x8000);
-	const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
+	const __m128i mfix4 = _mm_slli_epi32(mfix, 2);
 
 	mc = _mm_shuffle_epi32(mc, shuffle);
 	mc = _mm_packus_epi16(mc, mc);
@@ -165,13 +213,63 @@ static INLINED int ComputeOpaqueSubsetError3Pair(const Area& area, __m128i mc, c
 	int k = static_cast<int>(area.Count);
 	const __m256i* p = (const __m256i*)area.DataMask_I16;
 
-	while ((k -= 2) >= 0)
+	while ((k -= 4) >= 0)
+	{
+		__m256i vpacked0 = _mm256_load_si256(&p[0]);
+		__m256i vpacked1 = _mm256_load_si256(&p[1]);
+		__m256i vpixel0 = _mm256_shufflelo_epi16(vpacked0, shuffle);
+		__m256i vpixel1 = _mm256_shufflelo_epi16(vpacked1, shuffle);
+		vpixel0 = _mm256_unpacklo_epi64(vpixel0, vpixel0);
+		vpixel1 = _mm256_unpacklo_epi64(vpixel1, vpixel1);
+
+		merrorBlock = _mm_add_epi32(merrorBlock, mfix4);
+
+		__m256i vx = _mm256_sub_epi16(vpixel0, vtx);
+		__m256i vy = _mm256_sub_epi16(vpixel0, vty);
+		__m256i vz = _mm256_sub_epi16(vpixel1, vtx);
+		__m256i vw = _mm256_sub_epi16(vpixel1, vty);
+
+		vx = _mm256_mullo_epi16(vx, vx);
+		vy = _mm256_mullo_epi16(vy, vy);
+		vz = _mm256_mullo_epi16(vz, vz);
+		vw = _mm256_mullo_epi16(vw, vw);
+
+		vx = _mm256_xor_si256(vx, vsign);
+		vy = _mm256_xor_si256(vy, vsign);
+		vz = _mm256_xor_si256(vz, vsign);
+		vw = _mm256_xor_si256(vw, vsign);
+
+		vx = _mm256_madd_epi16(vx, vweights);
+		vy = _mm256_madd_epi16(vy, vweights);
+		vz = _mm256_madd_epi16(vz, vweights);
+		vw = _mm256_madd_epi16(vw, vweights);
+
+		vx = _mm256_min_epi32(vx, vy);
+		vz = _mm256_min_epi32(vz, vw);
+		vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+		vz = _mm256_min_epi32(vz, _mm256_shuffle_epi32(vz, _MM_SHUFFLE(2, 3, 0, 1)));
+		vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+		vz = _mm256_min_epi32(vz, _mm256_shuffle_epi32(vz, _MM_SHUFFLE(1, 0, 3, 2)));
+
+		vx = _mm256_add_epi32(vx, vz);
+
+		merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
+		merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
+
+		p += 2;
+
+		if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+			break;
+	}
+
+	if (k & 2)
 	{
 		__m256i vpacked = _mm256_load_si256(p);
 		__m256i vpixel = _mm256_shufflelo_epi16(vpacked, shuffle);
 		vpixel = _mm256_unpacklo_epi64(vpixel, vpixel);
 
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix2);
+		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
+		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
 
 		__m256i vx = _mm256_sub_epi16(vpixel, vtx);
 		__m256i vy = _mm256_sub_epi16(vpixel, vty);
@@ -193,9 +291,6 @@ static INLINED int ComputeOpaqueSubsetError3Pair(const Area& area, __m128i mc, c
 		merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
 
 		p++;
-
-		if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-			break;
 	}
 
 	if (k & 1)

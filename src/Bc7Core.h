@@ -66,7 +66,11 @@ struct alignas(64) Cell
 	uint64_t PersonalParameter;
 	uint32_t PersonalMode;
 
-	size_t unused[3];
+	int VisibleFlags;
+
+	bool IsOpaque;
+
+	uint64_t unused[2];
 
 	__m128i DataMask_I16[16];
 
@@ -88,7 +92,7 @@ struct alignas(8) Node
 {
 	int Error, Color;
 
-	INLINED void Init(int error, int color) noexcept
+	ALWAYS_INLINED void Init(int error, int color) noexcept
 	{
 		Error = error;
 		Color = color;
@@ -99,7 +103,7 @@ struct NodeShort
 {
 	uint32_t ColorError;
 
-	INLINED void Init(int64_t error, int color) noexcept
+	ALWAYS_INLINED void Init(int64_t error, int color) noexcept
 	{
 		ColorError = (static_cast<uint32_t>(error) << 16) | static_cast<uint32_t>(color);
 	}
@@ -117,7 +121,19 @@ struct alignas(64) Modulations
 	int Best[16];
 };
 
-Area& GetArea(Area& area, bool& lazy, const Cell& cell, const uint64_t indices) noexcept;
+NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t count, uint64_t indices) noexcept;
+
+ALWAYS_INLINED Area& GetArea(Area& area, bool& lazy, const Cell& cell, const uint64_t indices) noexcept
+{
+	if (lazy)
+	{
+		lazy = false;
+
+		MakeAreaFromCell(area, cell, indices & 0xF, indices >> 4);
+	}
+
+	return area;
+}
 
 int AreaGetBestPca3(Area& area) noexcept;
 

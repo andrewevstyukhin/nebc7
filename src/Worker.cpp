@@ -13,7 +13,7 @@
 
 static constexpr int WorkerThreadStackSize = 2 * 1024 * 1024;
 
-static INLINED int Max(int x, int y) noexcept
+static ALWAYS_INLINED int Max(int x, int y) noexcept
 {
 	return (x > y) ? x : y;
 }
@@ -252,26 +252,15 @@ public:
 	}
 };
 
-static INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
+static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
 {
-#if defined(OPTION_AVX2)
-	__m256i vr = _mm256_cvtepu8_epi16(mc);
-	vr = _mm256_shufflelo_epi16(vr, _MM_SHUFFLE(0, 2, 1, 3));
-	vr = _mm256_shufflehi_epi16(vr, _MM_SHUFFLE(0, 2, 1, 3));
-	return _mm_packus_epi16(_mm256_castsi256_si128(vr), _mm256_extracti128_si256(vr, 1));
-#else
-	__m128i mzero = _mm_setzero_si128();
+	const __m128i mrot = _mm_set_epi8(
+		0 + 12, 2 + 12, 1 + 12, 3 + 12,
+		0 + 8, 2 + 8, 1 + 8, 3 + 8,
+		0 + 4, 2 + 4, 1 + 4, 3 + 4,
+		0, 2, 1, 3);
 
-	__m128i mL = _mm_unpacklo_epi8(mc, mzero);
-	__m128i mH = _mm_unpackhi_epi8(mc, mzero);
-
-	mL = _mm_shufflelo_epi16(mL, _MM_SHUFFLE(0, 2, 1, 3));
-	mH = _mm_shufflelo_epi16(mH, _MM_SHUFFLE(0, 2, 1, 3));
-	mL = _mm_shufflehi_epi16(mL, _MM_SHUFFLE(0, 2, 1, 3));
-	mH = _mm_shufflehi_epi16(mH, _MM_SHUFFLE(0, 2, 1, 3));
-
-	return _mm_packus_epi16(mL, mH);
-#endif
+	return _mm_shuffle_epi8(mc, mrot);
 }
 
 void DecompressKernel(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept

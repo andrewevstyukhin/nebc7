@@ -215,7 +215,7 @@ namespace Mode2 {
 	public:
 		LevelsBuffer<LevelsCapacity> ch1, ch2, ch3;
 
-		INLINED Subset() noexcept = default;
+		ALWAYS_INLINED Subset() noexcept = default;
 
 		INLINED bool InitLevels(const Area& area, const int water, const Estimation& estimation) noexcept
 		{
