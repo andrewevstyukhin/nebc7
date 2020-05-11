@@ -1,6 +1,6 @@
 # nebc7 - Nearly Exhaustive BC7 compressor
 
-Nebc7 is an experimental solution published as is.
+Nebc7 is an open-source software published as is.
 
 Nebc7 converts specified RGBA image to BC7 format. It focuses on image quality and uses weighted PSNR metric with some assistance of SSIM.
 

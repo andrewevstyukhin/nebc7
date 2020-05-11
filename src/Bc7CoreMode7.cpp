@@ -74,6 +74,9 @@ namespace Mode7 {
 		DecompressIndexedSubset<2>(mc0, gTableSelection12[partitionIndex], (int*)output.ImageRows_U8, data1);
 		DecompressIndexedSubset<2>(mc1, gTableSelection22[partitionIndex], (int*)output.ImageRows_U8, data1);
 
+		output.BestColor0 = mc0;
+		output.BestColor1 = mc1;
+		output.BestColor2 = _mm_setzero_si128();
 		output.BestParameter = partitionIndex;
 		output.BestMode = 7;
 	}

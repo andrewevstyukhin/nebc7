@@ -75,6 +75,9 @@ namespace Mode2 {
 		DecompressIndexedSubset<2>(mc1, gTableSelection23[partitionIndex], (int*)output.ImageRows_U8, data1);
 		DecompressIndexedSubset<2>(mc2, gTableSelection33[partitionIndex], (int*)output.ImageRows_U8, data1);
 
+		output.BestColor0 = mc0;
+		output.BestColor1 = mc1;
+		output.BestColor2 = mc2;
 		output.BestParameter = partitionIndex;
 		output.BestMode = 2;
 	}

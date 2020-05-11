@@ -38,13 +38,13 @@ static INLINED int ComputeOpaqueAlphaError(const Area& area) noexcept
 	return error;
 }
 
-static INLINED void MakeCell(Cell& input) noexcept
+static INLINED void MakeCell(Cell& input, const Cell& decoded) noexcept
 {
-	input.BestColor0 = _mm_setzero_si128();
-	input.BestColor1 = _mm_setzero_si128();
-	input.BestColor2 = _mm_setzero_si128();
-	//input.BestParameter = 0;
-	//input.BestMode = 8;
+	input.BestColor0 = decoded.BestColor0;
+	input.BestColor1 = decoded.BestColor1;
+	input.BestColor2 = decoded.BestColor2;
+	input.BestParameter = decoded.BestParameter;
+	input.BestMode = decoded.BestMode;
 
 	int flags = 0;
 	int flags_mask = 1;
@@ -862,6 +862,10 @@ void DecompressBlock(uint8_t input[16], Cell& output) noexcept
 		_mm_store_si128(&output.ImageRows_U8[2], mzero);
 		_mm_store_si128(&output.ImageRows_U8[3], mzero);
 
+		output.BestColor0 = mzero;
+		output.BestColor1 = mzero;
+		output.BestColor2 = mzero;
+		output.BestParameter = 0;
 		output.BestMode = 8;
 	}
 }
@@ -894,8 +898,6 @@ static void CompressBlockFastOpaque(Cell& input) noexcept
 	// DetectGlitches
 	if (*(const short*)&input.Area1.MinMax_U16 <= (255 - 16))
 		return;
-
-	input.OpaqueAlphaError = ComputeOpaqueAlphaError(input.Area1);
 
 	if (input.Error.Total > input.OpaqueAlphaError)
 	{
@@ -933,18 +935,18 @@ void CompressBlock(uint8_t output[16], Cell& input) noexcept
 
 	Cell temp;
 	DecompressBlock(output, temp);
-	input.BestParameter = temp.BestParameter;
-	input.BestMode = temp.BestMode;
 
 	input.Error = CompareBlocks(input, temp);
 	if (input.Error.Total > 0)
 	{
-		MakeCell(input);
+		MakeCell(input, temp);
 
 		MakeAreaFromCell(input.Area1, input, 16, gTableSelection11);
 
 		if (gDoDraft)
 		{
+			input.OpaqueAlphaError = ComputeOpaqueAlphaError(input.Area1);
+
 			int water = input.Error.Total;
 
 			if (input.Area1.IsOpaque)
@@ -964,9 +966,6 @@ void CompressBlock(uint8_t output[16], Cell& input) noexcept
 
 			if (gDoFast)
 			{
-				input.PersonalParameter = input.BestParameter;
-				input.PersonalMode = input.BestMode;
-
 				switch (input.BestMode)
 				{
 				case 0:
@@ -1025,6 +1024,9 @@ void CompressBlock(uint8_t output[16], Cell& input) noexcept
 					}
 					break;
 				}
+
+				input.PersonalParameter = input.BestParameter;
+				input.PersonalMode = input.BestMode;
 
 				if (input.Area1.IsOpaque)
 				{

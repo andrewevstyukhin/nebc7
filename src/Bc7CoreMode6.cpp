@@ -68,6 +68,9 @@ namespace Mode6 {
 
 		DecompressSubset(mc0, (int*)output.ImageRows_U8, data1);
 
+		output.BestColor0 = mc0;
+		output.BestColor1 = _mm_setzero_si128();
+		output.BestColor2 = _mm_setzero_si128();
 		output.BestParameter = 0;
 		output.BestMode = 6;
 	}

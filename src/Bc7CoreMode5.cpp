@@ -131,6 +131,9 @@ namespace Mode5 {
 
 		DecompressSubset(mc0, (int*)output.ImageRows_U8, data1, data1 >> 32, rotation);
 
+		output.BestColor0 = mc0;
+		output.BestColor1 = _mm_setzero_si128();
+		output.BestColor2 = _mm_setzero_si128();
 		output.BestParameter = rotation;
 		output.BestMode = 5;
 	}
