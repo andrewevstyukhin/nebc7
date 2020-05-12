@@ -12,14 +12,14 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 	const __m128i mfix = gFixWeightsGRB;
 
 #if defined(OPTION_AVX2)
-	const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
+	const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
 	const __m256i vsign = _mm256_set1_epi16(-0x8000);
 	const __m128i mfix4 = _mm_slli_epi32(mfix, 2);
 
 	mc = _mm_packus_epi16(mc, mc);
-	__m256i vc = _mm256_broadcastsi128_si256(mc);
+	__m256i vc = _mm256_broadcastq_epi64(mc);
 
 	__m256i vt = *(const __m256i*)gTableInterpolate2_U8;
 
@@ -197,7 +197,7 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 	__m128i merrorBlock = _mm_setzero_si128();
 
 #if defined(OPTION_AVX2)
-	const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
+	const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
 	const __m256i vsign = _mm256_set1_epi16(-0x8000);
@@ -205,7 +205,7 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 
 	mc = _mm_shuffle_epi32(mc, shuffle);
 	mc = _mm_packus_epi16(mc, mc);
-	__m256i vc = _mm256_broadcastsi128_si256(mc);
+	__m256i vc = _mm256_broadcastq_epi64(mc);
 
 	__m256i vt = *(const __m256i*)gTableInterpolate2GR_U8;
 

@@ -3,7 +3,7 @@
 #include "pch.h"
 
 alignas(32) extern __m128i gTableInterpolate2_U8[4 >> 1];
-alignas(32) extern __m128i gTableInterpolate3_U8[8 >> 1];
+alignas(64) extern __m128i gTableInterpolate3_U8[8 >> 1];
 alignas(32) extern __m128i gTableInterpolate4_U8[16 >> 1];
 
 alignas(32) extern __m128i gTableInterpolate2GR_U8[4 >> (2 - 1)];

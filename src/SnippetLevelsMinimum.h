@@ -33,14 +33,14 @@ namespace LevelsMinimum {
 
 			__m256i vdelta = _mm256_load_si256(p);
 
-			__m512i wadd = _mm512_maskz_cvtepu8_epi16(kFullMask32, vdelta);
+			__m512i wadd = _mm512_cvtepu8_epi16(vdelta);
 
-			wadd = _mm512_maskz_mullo_epi16(kFullMask32, wadd, wadd);
+			wadd = _mm512_mullo_epi16(wadd, wadd);
 
-			wsum = _mm512_maskz_adds_epu16(kFullMask32, wsum, wadd);
+			wsum = _mm512_adds_epu16(wsum, wadd);
 		}
 
-		wbest = _mm512_maskz_min_epu16(kFullMask32, wbest, wsum);
+		wbest = _mm512_min_epu16(wbest, wsum);
 	}
 
 	static INLINED void Estimate16Full(__m512i& wbest, const uint8_t* values[16], const size_t count, const int c) noexcept
@@ -55,14 +55,14 @@ namespace LevelsMinimum {
 
 			__m128i mdelta = _mm_load_si128(p);
 
-			__m512i wadd = _mm512_maskz_cvtepu8_epi32(kFullMask16, mdelta);
+			__m512i wadd = _mm512_cvtepu8_epi32(mdelta);
 
-			wadd = _mm512_maskz_mullo_epi16(kFullMask32, wadd, wadd);
+			wadd = _mm512_mullo_epi16(wadd, wadd);
 
-			wsum = _mm512_maskz_add_epi32(kFullMask16, wsum, wadd);
+			wsum = _mm512_add_epi32(wsum, wadd);
 		}
 
-		wbest = _mm512_maskz_min_epi32(kFullMask16, wbest, wsum);
+		wbest = _mm512_min_epi32(wbest, wsum);
 	}
 
 #elif defined(OPTION_AVX2)
@@ -277,12 +277,12 @@ namespace LevelsMinimum {
 
 					const __m512i* p = (const __m512i*)&value[iH];
 
-					__m512i wadd = _mm512_maskz_load_epi64(kFullMask8, p);
+					__m512i wadd = _mm512_load_epi64(p);
 
-					wcut = _mm512_maskz_adds_epu16(kFullMask32, wcut, wadd);
+					wcut = _mm512_adds_epu16(wcut, wadd);
 				}
 
-				_mm512_mask_store_epi64((__m512i*)&rows[iH], kFullMask8, wcut);
+				_mm512_store_epi64((__m512i*)&rows[iH], wcut);
 			}
 #elif defined(OPTION_AVX2)
 			for (int iH = HL & ~15; iH < HH; iH += 16)
@@ -328,7 +328,7 @@ namespace LevelsMinimum {
 					continue;
 
 #if defined(OPTION_AVX512)
-				__m512i wbest = _mm512_maskz_set1_epi16(kFullMask32, -1);
+				__m512i wbest = _mm512_set1_epi16(-1);
 #elif defined(OPTION_AVX2)
 				__m256i vbest = _mm256_set1_epi16(-1);
 #else
@@ -349,7 +349,7 @@ namespace LevelsMinimum {
 				}
 
 #if defined(OPTION_AVX512)
-				__m256i vbest = _mm256_min_epu16(_mm512_maskz_extracti64x4_epi64(kFullMask8, wbest, 1), _mm512_castsi512_si256(wbest));
+				__m256i vbest = _mm256_min_epu16(_mm512_extracti64x4_epi64(wbest, 1), _mm512_castsi512_si256(wbest));
 				__m128i mbest = _mm_min_epu16(_mm256_extracti128_si256(vbest, 1), _mm256_castsi256_si128(vbest));
 #elif defined(OPTION_AVX2)
 				__m128i mbest = _mm_min_epu16(_mm256_extracti128_si256(vbest, 1), _mm256_castsi256_si128(vbest));
@@ -379,10 +379,10 @@ namespace LevelsMinimum {
 
 					__m256i vadd = _mm256_load_si256(p);
 
-					wcut = _mm512_maskz_add_epi32(kFullMask16, wcut, _mm512_maskz_cvtepu16_epi32(kFullMask16, vadd));
+					wcut = _mm512_add_epi32(wcut, _mm512_cvtepu16_epi32(vadd));
 				}
 
-				_mm512_mask_store_epi64((__m512i*)&rows[iH], kFullMask8, wcut);
+				_mm512_store_epi64((__m512i*)&rows[iH], wcut);
 			}
 #elif defined(OPTION_AVX2)
 			for (int iH = HL & ~7; iH < HH; iH += 8)
@@ -433,7 +433,7 @@ namespace LevelsMinimum {
 					continue;
 
 #if defined(OPTION_AVX512)
-				__m512i wbest = _mm512_maskz_set1_epi32(kFullMask16, kBlockMaximalAlphaError + kBlockMaximalColorError);
+				__m512i wbest = _mm512_set1_epi32(kBlockMaximalAlphaError + kBlockMaximalColorError);
 #elif defined(OPTION_AVX2)
 				__m256i vbest = _mm256_set1_epi32(kBlockMaximalAlphaError + kBlockMaximalColorError);
 #else
@@ -454,7 +454,7 @@ namespace LevelsMinimum {
 				}
 
 #if defined(OPTION_AVX512)
-				__m256i vbest = _mm256_min_epi32(_mm512_maskz_extracti64x4_epi64(kFullMask8, wbest, 1), _mm512_castsi512_si256(wbest));
+				__m256i vbest = _mm256_min_epi32(_mm512_extracti64x4_epi64(wbest, 1), _mm512_castsi512_si256(wbest));
 				__m128i mbest = _mm_min_epi32(_mm256_extracti128_si256(vbest, 1), _mm256_castsi256_si128(vbest));
 #elif defined(OPTION_AVX2)
 				__m128i mbest = _mm_min_epi32(_mm256_extracti128_si256(vbest, 1), _mm256_castsi256_si128(vbest));

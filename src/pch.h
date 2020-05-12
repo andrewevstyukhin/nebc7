@@ -1,5 +1,7 @@
 #pragma once
 
+#if !defined(OPTION_LIBRARY)
+
 #include "Bc7Mode.h"
 
 #if defined(WIN32)
@@ -19,7 +21,7 @@
 #include <immintrin.h> // AVX512
 #elif defined(OPTION_AVX2)
 #include <immintrin.h> // AVX2
-#else
+#elif !defined(OPTION_SLOWPOKE)
 #include <smmintrin.h> // SSE4.1
 #endif
 
@@ -38,9 +40,8 @@
 
 #define PRINTF(...) printf(__VA_ARGS__); printf("\n");
 
-#if defined(OPTION_AVX512)
-constexpr __mmask8 kFullMask8 = 0xFFui8;
-constexpr __mmask16 kFullMask16 = 0xFFFFui16;
-constexpr __mmask32 kFullMask32 = ~0ui32;
-constexpr __mmask64 kFullMask64 = ~0ui64;
+#endif // !OPTION_LIBRARY
+
+#if defined(OPTION_SLOWPOKE)
+#include "SnippetTargetSSSE3.h"
 #endif

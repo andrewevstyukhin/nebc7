@@ -478,7 +478,7 @@ private:
 
 	static INLINED void Estimate32Short(NodeShort*& nodesPtr, const uint8_t* values[16], const size_t count, const int c, const __m128i mtop) noexcept
 	{
-		const __m512i wwater = _mm512_maskz_broadcastw_epi16(kFullMask32, mtop);
+		const __m512i wwater = _mm512_broadcastw_epi16(mtop);
 
 		__m512i wsum = _mm512_setzero_si512();
 		uint32_t flags = ~0ui32;
@@ -491,21 +491,21 @@ private:
 
 			__m256i vdelta = _mm256_load_si256(p);
 
-			__m512i wadd = _mm512_maskz_cvtepu8_epi16(kFullMask32, vdelta);
+			__m512i wadd = _mm512_cvtepu8_epi16(vdelta);
 
-			wadd = _mm512_maskz_mullo_epi16(kFullMask32, wadd, wadd);
+			wadd = _mm512_mullo_epi16(wadd, wadd);
 
-			wsum = _mm512_maskz_adds_epu16(kFullMask32, wsum, wadd);
+			wsum = _mm512_adds_epu16(wsum, wadd);
 
-			flags = _mm512_mask_cmp_epu16_mask(kFullMask32, wwater, wsum, _MM_CMPINT_GT);
+			flags = _mm512_cmp_epu16_mask(wwater, wsum, _MM_CMPINT_GT);
 			if (!flags)
 				return;
 		}
 
 		Store8N(nodesPtr, _mm512_castsi512_si128(wsum), flags, c);
-		Store8N(nodesPtr, _mm512_maskz_extracti32x4_epi32(kFullMask8, wsum, 1), flags >> 8, c + 8);
-		Store8N(nodesPtr, _mm512_maskz_extracti32x4_epi32(kFullMask8, wsum, 2), flags >> 16, c + 16);
-		Store8N(nodesPtr, _mm512_maskz_extracti32x4_epi32(kFullMask8, wsum, 3), flags >> 24, c + 24);
+		Store8N(nodesPtr, _mm512_extracti32x4_epi32(wsum, 1), flags >> 8, c + 8);
+		Store8N(nodesPtr, _mm512_extracti32x4_epi32(wsum, 2), flags >> 16, c + 16);
+		Store8N(nodesPtr, _mm512_extracti32x4_epi32(wsum, 3), flags >> 24, c + 24);
 	}
 
 	static INLINED void Estimate16Short(NodeShort*& nodesPtr, const uint8_t* values[16], const size_t count, const int c, const __m128i mtop) noexcept

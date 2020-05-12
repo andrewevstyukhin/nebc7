@@ -11,15 +11,97 @@ static INLINED int ComputeOpaqueSubsetError3(const Area& area, __m128i mc, const
 	const __m128i mweights = gWeightsGRB;
 	const __m128i mfix = gFixWeightsGRB;
 
-#if defined(OPTION_AVX2)
-	const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
+#if defined(OPTION_AVX512)
+	const __m512i wweights = _mm512_broadcastq_epi64(mweights);
+
+	const __m512i whalf = _mm512_set1_epi16(32);
+	const __m512i wsign = _mm512_set1_epi16(-0x8000);
+	const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
+
+	mc = _mm_packus_epi16(mc, mc);
+	__m512i wc = _mm512_broadcastq_epi64(mc);
+
+	__m512i wt = *(const __m512i*)gTableInterpolate3_U8;
+
+	wt = _mm512_maddubs_epi16(wc, wt);
+
+	wt = _mm512_add_epi16(wt, whalf);
+
+	wt = _mm512_srli_epi16(wt, 6);
+
+	__m512i wtx = _mm512_permutex_epi64(wt, 0x44);
+	__m512i wty = _mm512_permutex_epi64(wt, 0xEE);
+
+	int k = static_cast<int>(area.Count);
+	const __m256i* p = (const __m256i*)area.DataMask_I16;
+
+	while ((k -= 2) >= 0)
+	{
+		__m256i vpacked = _mm256_load_si256(p);
+		__m256i vpixel = _mm256_unpacklo_epi64(vpacked, vpacked);
+		__m512i wpixel = _mm512_broadcast_i64x4(vpixel);
+
+		merrorBlock = _mm_add_epi32(merrorBlock, mfix2);
+
+		__m512i wx = _mm512_sub_epi16(wpixel, wtx);
+		__m512i wy = _mm512_sub_epi16(wpixel, wty);
+
+		wx = _mm512_mullo_epi16(wx, wx);
+		wy = _mm512_mullo_epi16(wy, wy);
+
+		wx = _mm512_xor_epi32(wx, wsign);
+		wy = _mm512_xor_epi32(wy, wsign);
+
+		wx = _mm512_madd_epi16(wx, wweights);
+		wy = _mm512_madd_epi16(wy, wweights);
+
+		wx = _mm512_add_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(2, 3, 0, 1)));
+		wy = _mm512_add_epi32(wy, _mm512_shuffle_epi32(wy, _MM_SHUFFLE(2, 3, 0, 1)));
+
+		wx = _mm512_min_epi32(wx, wy);
+		__m256i vx = _mm256_min_epi32(_mm512_extracti64x4_epi64(wx, 1), _mm512_castsi512_si256(wx));
+		vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+		merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
+		merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
+
+		p++;
+
+		if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+			break;
+	}
+
+	if (k & 1)
+	{
+		__m128i mpacked = _mm_load_si128((const __m128i*)p);
+		__m512i wpixel = _mm512_broadcastq_epi64(mpacked);
+
+		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
+
+		__m512i wx = _mm512_sub_epi16(wpixel, wt);
+
+		wx = _mm512_mullo_epi16(wx, wx);
+
+		wx = _mm512_xor_epi32(wx, wsign);
+
+		wx = _mm512_madd_epi16(wx, wweights);
+
+		wx = _mm512_add_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(2, 3, 0, 1)));
+
+		__m256i vx = _mm256_min_epi32(_mm512_extracti64x4_epi64(wx, 1), _mm512_castsi512_si256(wx));
+		vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+		merrorBlock = _mm_add_epi32(merrorBlock, _mm_min_epi32(_mm256_extracti128_si256(vx, 1), _mm256_castsi256_si128(vx)));
+	}
+#elif defined(OPTION_AVX2)
+	const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
 	const __m256i vsign = _mm256_set1_epi16(-0x8000);
 	const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
 
 	mc = _mm_packus_epi16(mc, mc);
-	__m256i vc = _mm256_broadcastsi128_si256(mc);
+	__m256i vc = _mm256_broadcastq_epi64(mc);
 
 	__m256i vt0 = *(const __m256i*)&gTableInterpolate3_U8[0];
 	__m256i vt1 = *(const __m256i*)&gTableInterpolate3_U8[2];
@@ -189,7 +271,7 @@ static INLINED int ComputeOpaqueSubsetError3Pair(const Area& area, __m128i mc, c
 	__m128i merrorBlock = _mm_setzero_si128();
 
 #if defined(OPTION_AVX2)
-	const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
+	const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
 	const __m256i vsign = _mm256_set1_epi16(-0x8000);
@@ -197,7 +279,7 @@ static INLINED int ComputeOpaqueSubsetError3Pair(const Area& area, __m128i mc, c
 
 	mc = _mm_shuffle_epi32(mc, shuffle);
 	mc = _mm_packus_epi16(mc, mc);
-	__m256i vc = _mm256_broadcastsi128_si256(mc);
+	__m256i vc = _mm256_broadcastq_epi64(mc);
 
 	__m256i vt = *(const __m256i*)gTableInterpolate3GR_U8;
 

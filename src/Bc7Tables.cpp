@@ -48,7 +48,7 @@ alignas(16) static constexpr short gTableInterpolate4[16][2] =
 };
 
 alignas(32) __m128i gTableInterpolate2_U8[4 >> 1];
-alignas(32) __m128i gTableInterpolate3_U8[8 >> 1];
+alignas(64) __m128i gTableInterpolate3_U8[8 >> 1];
 alignas(32) __m128i gTableInterpolate4_U8[16 >> 1];
 
 alignas(32) __m128i gTableInterpolate2GR_U8[4 >> (2 - 1)];

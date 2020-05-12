@@ -191,10 +191,10 @@ namespace Mode4 {
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vsign = _mm256_set1_epi16(-0x8000);
 		const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
-		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastsi128_si256(mweights), vrot);
+		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastq_epi64(mweights), vrot);
 
 		mc = _mm_packus_epi16(mc, mc);
-		__m256i vc = _mm256_broadcastsi128_si256(mc);
+		__m256i vc = _mm256_broadcastq_epi64(mc);
 
 		const __m256i vmask3 = _mm256_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0);
 		const __m256i vweights3 = _mm256_and_si256(vweights, vmask3);
@@ -365,10 +365,10 @@ namespace Mode4 {
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vsign = _mm256_set1_epi16(-0x8000);
 		const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
-		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastsi128_si256(mweights), vrot);
+		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastq_epi64(mweights), vrot);
 
 		mc = _mm_packus_epi16(mc, mc);
-		__m256i vc = _mm256_broadcastsi128_si256(mc);
+		__m256i vc = _mm256_broadcastq_epi64(mc);
 
 		const __m256i vmask3 = _mm256_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0);
 		const __m256i vweights3 = _mm256_and_si256(vweights, vmask3);

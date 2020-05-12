@@ -121,13 +121,13 @@ namespace Mode6 {
 		__m128i merrorBlock = _mm_setzero_si128();
 
 #if defined(OPTION_AVX2)
-		const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
+		const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vsign = _mm256_set1_epi16(-0x8000);
 
 		mc = _mm_packus_epi16(mc, mc);
-		__m256i vc = _mm256_broadcastsi128_si256(mc);
+		__m256i vc = _mm256_broadcastq_epi64(mc);
 
 		__m256i vtx = *(const __m256i*)&gTableInterpolate4_U8[0];
 		__m256i vty = *(const __m256i*)&gTableInterpolate4_U8[2];
@@ -314,7 +314,7 @@ namespace Mode6 {
 		__m128i merrorBlock = _mm_setzero_si128();
 
 #if defined(OPTION_AVX2)
-		const __m256i vweights = _mm256_broadcastsi128_si256(mweights);
+		const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vsign = _mm256_set1_epi16(-0x8000);
@@ -322,7 +322,7 @@ namespace Mode6 {
 
 		mc = _mm_shuffle_epi32(mc, shuffle);
 		mc = _mm_packus_epi16(mc, mc);
-		__m256i vc = _mm256_broadcastsi128_si256(mc);
+		__m256i vc = _mm256_broadcastq_epi64(mc);
 
 		__m256i vt0 = *(const __m256i*)&gTableInterpolate4GR_U8[0];
 		__m256i vt1 = *(const __m256i*)&gTableInterpolate4GR_U8[2];

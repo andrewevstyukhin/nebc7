@@ -8,7 +8,7 @@ Nebc7 always preserves opaque alpha for opaque blocks.
 
 ## Usage
 
-The solution was tested on AVX-capable CPU for Win64 API only.
+The solution was tested on SSSE3, SSE4.1, AVX, AVX2, AVX512BW - capable CPUs for Win64 API only.
 
 `Bc7Compress /nomask /noflip source.png destination.ktx [/debug result.png]`
 

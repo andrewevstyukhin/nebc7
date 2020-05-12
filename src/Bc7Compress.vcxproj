@@ -130,6 +130,7 @@
     <ClInclude Include="SnippetInsertRemoveZeroBit.h" />
     <ClInclude Include="SnippetLevelsBuffer.h" />
     <ClInclude Include="SnippetLevelsMinimum.h" />
+    <ClInclude Include="SnippetTargetSSSE3.h" />
     <ClInclude Include="Worker.h" />
   </ItemGroup>
   <ItemGroup>
