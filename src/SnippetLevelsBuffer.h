@@ -481,7 +481,7 @@ private:
 		const __m512i wwater = _mm512_broadcastw_epi16(mtop);
 
 		__m512i wsum = _mm512_setzero_si512();
-		uint32_t flags = ~0ui32;
+		uint32_t flags = ~0u;
 
 		for (size_t i = 0; i < count; i++)
 		{

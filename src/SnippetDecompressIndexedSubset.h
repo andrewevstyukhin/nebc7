@@ -26,7 +26,7 @@ static INLINED void DecompressIndexedSubset(__m128i mc, uint64_t indices, int* o
 		}
 		else
 		{
-			static_assert(false);
+			static_assert((bits == 2) || (bits == 3));
 		}
 
 		__m128i mx = _mm_maddubs_epi16(mc, mratio);

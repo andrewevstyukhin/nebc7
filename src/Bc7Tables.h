@@ -24,7 +24,7 @@ alignas(32) extern uint8_t gTableShrinkedHigh3[64];
 void InitShrinked() noexcept;
 
 
-constexpr uint64_t gTableSelection11 = 0xFEDCBA9876543210ui64;
+constexpr uint64_t gTableSelection11 = 0xFEDCBA9876543210uLL;
 
 alignas(32) extern uint64_t gTableSelection12[64];
 alignas(32) extern uint64_t gTableSelection22[64];

@@ -244,6 +244,24 @@ namespace LevelsMinimum {
 			return 0;
 		}
 
+		if constexpr (bits == 7)
+		{
+			// Mode 1
+			if (H - L <= 5)
+			{
+				return 0;
+			}
+		}
+
+		if constexpr (bits == 8)
+		{
+			// Mode 3
+			if (H - L <= 3)
+			{
+				return 0;
+			}
+		}
+
 		int LH = Min(L + d, 255);
 		int HL = Max(H - d, 0);
 

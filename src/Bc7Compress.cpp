@@ -85,7 +85,7 @@ static INLINED void ComputeAlphaMaskWithOutline(uint8_t* mask_agrb, const uint8_
 	delete[] data, data = nullptr;
 }
 
-static void PackTexture(uint8_t* dst_bc7, uint8_t* src_bgra, uint8_t* mask_agrb, int stride, int src_w, int src_h, PBlockKernel blockKernel, size_t block_size, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim)
+static void PackTexture(const IBc7Core& bc7Core, uint8_t* dst_bc7, uint8_t* src_bgra, uint8_t* mask_agrb, int stride, int src_w, int src_h, PBlockKernel blockKernel, size_t block_size, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim)
 {
 	auto start = std::chrono::high_resolution_clock::now();
 
@@ -93,7 +93,7 @@ static void PackTexture(uint8_t* dst_bc7, uint8_t* src_bgra, uint8_t* mask_agrb,
 
 	auto finish = std::chrono::high_resolution_clock::now();
 
-	if (blockKernel == CompressKernel)
+	if (blockKernel == bc7Core.pCompress)
 	{
 		int pixels = src_h * src_w;
 
@@ -125,19 +125,19 @@ static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
 					data0 &= (1u << (4 + 1)) - 1u;
 
 					data0 |=
-						(0xFui64 << 29) + // G0
-						(0xFui64 << 13); // R2
+						(0xFuLL << 29) + // G0
+						(0xFuLL << 13); // R2
 
 					data1 = 
-						(0xFui64 << 5); // B4
+						(0xFuLL << 5); // B4
 				}
 				else
 				{
 					data0 &= (1u << (6 + 2)) - 1u;
 
 					data0 |=
-						(0x3Fui64 << 32) + // G0
-						(0x3Fui64 << 20); // R2
+						(0x3FuLL << 32) + // G0
+						(0x3FuLL << 20); // R2
 
 					data1 = 0;
 				}
@@ -149,19 +149,19 @@ static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
 					data0 &= (1u << (6 + 3)) - 1u;
 
 					data0 |=
-						(0x1Fui64 << 39) + // G0
-						(0x1Fui64 << 19); // R2
+						(0x1FuLL << 39) + // G0
+						(0x1FuLL << 19); // R2
 
 					data1 =
-						(0x1Fui64 << 25); // B4
+						(0x1FuLL << 25); // B4
 				}
 				else
 				{
 					data0 &= (1u << (6 + 4)) - 1u;
 
 					data0 |=
-						(0x7Fui64 << 38) + // G0
-						(0x7Fui64 << 24); // R2
+						(0x7FuLL << 38) + // G0
+						(0x7FuLL << 24); // R2
 
 					data1 = 0;
 				}
@@ -176,9 +176,9 @@ static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
 					data0 &= (1u << 5) - 1u;
 
 					data0 |=
-						(0x1Fui64 << 18) + // G0
-						(0x1Fui64 << 8) + // R0
-						(0x3Fui64 << 38); // A0
+						(0x1FuLL << 18) + // G0
+						(0x1FuLL << 8) + // R0
+						(0x3FuLL << 38); // A0
 
 					data1 = 0;
 				}
@@ -187,9 +187,9 @@ static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
 					data0 &= (1u << 6) - 1u;
 
 					data0 |=
-						(0x7Fui64 << 22) + // G0
-						(0x7Fui64 << 8) + // R0
-						(0xFFui64 << 50); // A0
+						(0x7FuLL << 22) + // G0
+						(0x7FuLL << 8) + // R0
+						(0xFFuLL << 50); // A0
 
 					data1 = 0;
 				}
@@ -204,10 +204,10 @@ static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
 					data0 &= (1u << 7) - 1u;
 
 					data0 |=
-						(0x40ui64 << 21) + // G0
-						(0x40ui64 << 7) + // R0
-						(0x40ui64 << 35) + // B0
-						(0x7Fui64 << 49); // A0
+						(0x40uLL << 21) + // G0
+						(0x40uLL << 7) + // R0
+						(0x40uLL << 35) + // B0
+						(0x7FuLL << 49); // A0
 
 					data1 = 0;
 				}
@@ -216,12 +216,12 @@ static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
 					data0 &= (1u << (6 + 8)) - 1u;
 
 					data0 |=
-						(0x1Fui64 << 34) + // G0
-						(0x1Fui64 << 24); // R2
+						(0x1FuLL << 34) + // G0
+						(0x1FuLL << 24); // R2
 
 					data1 =
-						(0x1Fui64 << 10) + // A0
-						(0x1Fui64 << 20); // A2
+						(0x1FuLL << 10) + // A0
+						(0x1FuLL << 20); // A2
 				}
 			}
 		}
@@ -231,12 +231,12 @@ static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
 	}
 }
 
-int Bc7MainWithArgs(const std::vector<std::string>& args)
+int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& args)
 {
-	gDoDraft = true;
-	gDoFast = true;
-	gDoNormal = true;
-	gDoSlow = false;
+	bool doDraft = true;
+	bool doFast = true;
+	bool doNormal = true;
+	bool doSlow = false;
 
 	bool flip = true;
 	bool mask = true;
@@ -256,42 +256,42 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 		{
 			if (strcmp(arg, "/compare") == 0)
 			{
-				gDoDraft = false;
-				gDoFast = false;
-				gDoNormal = false;
-				gDoSlow = false;
+				doDraft = false;
+				doFast = false;
+				doNormal = false;
+				doSlow = false;
 				continue;
 			}
 			else if (strcmp(arg, "/draft") == 0)
 			{
-				gDoDraft = true;
-				gDoFast = false;
-				gDoNormal = false;
-				gDoSlow = false;
+				doDraft = true;
+				doFast = false;
+				doNormal = false;
+				doSlow = false;
 				continue;
 			}
 			else if (strcmp(arg, "/fast") == 0)
 			{
-				gDoDraft = true;
-				gDoFast = true;
-				gDoNormal = false;
-				gDoSlow = false;
+				doDraft = true;
+				doFast = true;
+				doNormal = false;
+				doSlow = false;
 				continue;
 			}
 			else if (strcmp(arg, "/normal") == 0)
 			{
-				gDoDraft = true;
-				gDoFast = true;
-				gDoNormal = true;
-				gDoSlow = false;
+				doDraft = true;
+				doFast = true;
+				doNormal = true;
+				doSlow = false;
 				continue;
 			}
 			else if (strcmp(arg, "/slow") == 0)
 			{
-				gDoDraft = true;
-				gDoFast = true;
-				gDoNormal = true;
-				gDoSlow = true;
+				doDraft = true;
+				doFast = true;
+				doNormal = true;
+				doSlow = true;
 				continue;
 			}
 			else if (strcmp(arg, "/noflip") == 0)
@@ -439,14 +439,7 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 	head[22] = flip ? 0x00753Du : 0x00643Du;
 	head[23] = static_cast<uint32_t>(Size); // imageSize
 
-	InitInterpolation();
-	InitShrinked();
-	InitSelection();
-	InitLevels();
-
-#if defined(OPTION_PCA)
-	InitPCA();
-#endif
+	bc7Core.pInitTables(doDraft, doFast, doNormal, doSlow);
 
 	memcpy(dst_texture_bgra, src_texture_bgra, src_texture_h * src_texture_stride);
 
@@ -471,7 +464,7 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 		int64_t mse_alpha = 0;
 		int64_t mse_color = 0;
 		BlockSSIM ssim = BlockSSIM(0, 0);
-		PackTexture(dst_bc7, src_texture_bgra, mask_agrb, src_texture_stride, src_texture_w, src_texture_h, &CompressKernel, 16, mse_alpha, mse_color, ssim);
+		PackTexture(bc7Core, dst_bc7, src_texture_bgra, mask_agrb, src_texture_stride, src_texture_w, src_texture_h, bc7Core.pCompress, 16, mse_alpha, mse_color, ssim);
 
 		int pixels = src_texture_h * src_texture_w;
 
@@ -508,7 +501,7 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 
 		SaveBc7(dst_name, (const uint8_t*)head, sizeof(head), dst_bc7, Size);
 
-		PackTexture(dst_bc7, dst_texture_bgra, mask_agrb, src_texture_stride, src_texture_w, src_texture_h, &DecompressKernel, 16, mse_alpha, mse_color, ssim);
+		PackTexture(bc7Core, dst_bc7, dst_texture_bgra, mask_agrb, src_texture_stride, src_texture_w, src_texture_h, bc7Core.pDecompress, 16, mse_alpha, mse_color, ssim);
 
 		if ((bad_name != nullptr) && bad_name[0])
 		{
@@ -521,7 +514,7 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 		{
 			VisualizePartitionsGRB(dst_bc7, Size);
 
-			PackTexture(dst_bc7, mask_agrb, dst_texture_bgra, src_texture_stride, src_texture_w, src_texture_h, &DecompressKernel, 16, mse_alpha, mse_color, ssim);
+			PackTexture(bc7Core, dst_bc7, mask_agrb, dst_texture_bgra, src_texture_stride, src_texture_w, src_texture_h, bc7Core.pDecompress, 16, mse_alpha, mse_color, ssim);
 
 			WriteImage(partitions_name, mask_agrb, src_texture_w, src_texture_h, flip);
 		}
@@ -541,10 +534,19 @@ int Bc7MainWithArgs(const std::vector<std::string>& args)
 	return 0;
 }
 
-#if defined(WIN32)
+#if !defined(OPTION_LIBRARY) && defined(WIN32)
+
+bool GetBc7Core(void* bc7Core);
 
 int __cdecl main(int argc, char* argv[])
 {
+	IBc7Core bc7Core{};
+	if (!GetBc7Core(&bc7Core))
+	{
+		PRINTF("Unsupported CPU");
+		return 2;
+	}
+
 	if (argc < 2)
 	{
 		PRINTF("Usage: Bc7Compress [/fast | /normal | /slow | /draft] [/retina] [/nomask] [/noflip] src");
@@ -560,7 +562,7 @@ int __cdecl main(int argc, char* argv[])
 		args.emplace_back(argv[i]);
 	}
 
-	return Bc7MainWithArgs(args);
+	return Bc7MainWithArgs(bc7Core, args);
 }
 
 #endif

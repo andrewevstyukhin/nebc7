@@ -13,10 +13,14 @@
 
 static constexpr int WorkerThreadStackSize = 2 * 1024 * 1024;
 
+#if !defined(OPTION_LIBRARY)
+
 static ALWAYS_INLINED int Max(int x, int y) noexcept
 {
 	return (x > y) ? x : y;
 }
+
+#endif
 
 class WorkerJob
 {
@@ -252,101 +256,6 @@ public:
 	}
 };
 
-static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
-{
-	const __m128i mrot = _mm_set_epi8(
-		0 + 12, 2 + 12, 1 + 12, 3 + 12,
-		0 + 8, 2 + 8, 1 + 8, 3 + 8,
-		0 + 4, 2 + 4, 1 + 4, 3 + 4,
-		0, 2, 1, 3);
-
-	return _mm_shuffle_epi8(mc, mrot);
-}
-
-void DecompressKernel(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept
-{
-	(void)pErrorAlpha;
-	(void)pErrorColor;
-	(void)pssim;
-
-	Cell output;
-
-	for (auto it = begin; it != end; it++)
-	{
-		DecompressBlock(it->_Output, output);
-
-		{
-			const uint8_t* p = it->_Cell;
-
-			_mm_storeu_si128((__m128i*)p, ConvertBgraToAgrb(output.ImageRows_U8[0]));
-
-			p += stride;
-
-			_mm_storeu_si128((__m128i*)p, ConvertBgraToAgrb(output.ImageRows_U8[1]));
-
-			p += stride;
-
-			_mm_storeu_si128((__m128i*)p, ConvertBgraToAgrb(output.ImageRows_U8[2]));
-
-			p += stride;
-
-			_mm_storeu_si128((__m128i*)p, ConvertBgraToAgrb(output.ImageRows_U8[3]));
-		}
-	}
-}
-
-void CompressKernel(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept
-{
-	Cell input;
-
-	for (auto it = begin; it != end; it++)
-	{
-		{
-			const uint8_t* p = it->_Cell;
-
-			input.ImageRows_U8[0] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
-
-			p += stride;
-
-			input.ImageRows_U8[1] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
-
-			p += stride;
-
-			input.ImageRows_U8[2] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
-
-			p += stride;
-
-			input.ImageRows_U8[3] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
-		}
-
-		{
-			const uint8_t* p = it->_Mask;
-
-			input.MaskRows_S8[0] = _mm_loadu_si128((const __m128i*)p);
-
-			p += stride;
-
-			input.MaskRows_S8[1] = _mm_loadu_si128((const __m128i*)p);
-
-			p += stride;
-
-			input.MaskRows_S8[2] = _mm_loadu_si128((const __m128i*)p);
-
-			p += stride;
-
-			input.MaskRows_S8[3] = _mm_loadu_si128((const __m128i*)p);
-		}
-
-		CompressBlock(it->_Output, input);
-
-		pErrorAlpha += input.Error.Alpha;
-		pErrorColor += input.Error.Total - input.Error.Alpha;
-
-		pssim.Alpha += input.Quality.Alpha;
-		pssim.Color += input.Quality.Color;
-	}
-}
-
 void ProcessTexture(uint8_t* dst, uint8_t* src_bgra, uint8_t* mask_agrb, int stride, int src_w, int src_h, PBlockKernel blockKernel, size_t block_size, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim)
 {
 	Worker worker;
@@ -378,6 +287,56 @@ void ProcessTexture(uint8_t* dst, uint8_t* src_bgra, uint8_t* mask_agrb, int str
 	worker.Add(job);
 
 	worker.Run(blockKernel, stride, pErrorAlpha, pErrorColor, pssim);
+}
+
+static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
+{
+	const __m128i mrot = _mm_set_epi8(
+		0 + 12, 2 + 12, 1 + 12, 3 + 12,
+		0 + 8, 2 + 8, 1 + 8, 3 + 8,
+		0 + 4, 2 + 4, 1 + 4, 3 + 4,
+		0, 2, 1, 3);
+
+	return _mm_shuffle_epi8(mc, mrot);
+}
+
+bool DetectGlitches(const Cell& input, const Cell& output) noexcept
+{
+	const __m128i msign = _mm_set1_epi8(-0x80);
+
+#if defined(OPTION_LINEAR)
+
+	const __m128i mstep = _mm_set1_epi8(16 - 129);
+
+#else
+
+	const __m128i mstep = _mm_set_epi8(
+		20 - 129, 16 - 129, 12 - 129, 16 - 129,
+		20 - 129, 16 - 129, 12 - 129, 16 - 129,
+		20 - 129, 16 - 129, 12 - 129, 16 - 129,
+		20 - 129, 16 - 129, 12 - 129, 16 - 129);
+
+#endif
+
+	__m128i me = _mm_setzero_si128();
+
+	for (int y = 0; y < 4; y++)
+	{
+		__m128i mc1 = input.ImageRows_U8[y];
+		__m128i mc2 = output.ImageRows_U8[y];
+
+		__m128i mmask = input.MaskRows_S8[y];
+
+		__m128i md = _mm_or_si128(_mm_subs_epu8(mc1, mc2), _mm_subs_epu8(mc2, mc1));
+		md = _mm_and_si128(md, mmask);
+
+		md = _mm_xor_si128(md, msign);
+		md = _mm_cmpgt_epi8(md, mstep);
+
+		me = _mm_or_si128(me, md);
+	}
+
+	return _mm_movemask_epi8(me) != 0;
 }
 
 void ShowBadBlocks(const uint8_t* src_bgra, const uint8_t* dst_bgra, uint8_t* mask_agrb, int stride, int src_w, int src_h) noexcept

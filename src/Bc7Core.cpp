@@ -4,6 +4,7 @@
 #include "Bc7Tables.h"
 #include "Bc7Pca.h"
 #include "Metrics.h"
+#include "Worker.h"
 
 #if defined(OPTION_COUNTERS)
 #include "SnippetLevelsMinimum.h"
@@ -15,10 +16,10 @@ static std::atomic_int gCounterModes[8];
 static std::atomic_int gCompressAlready, gCompress, gCompressBad;
 #endif
 
-bool gDoDraft = false;
-bool gDoFast = false;
-bool gDoNormal = false;
-bool gDoSlow = false;
+static bool gDoDraft = false;
+static bool gDoFast = false;
+static bool gDoNormal = false;
+static bool gDoSlow = false;
 
 static INLINED int ComputeOpaqueAlphaError(const Area& area) noexcept
 {
@@ -401,13 +402,13 @@ void AreaReduceTable2(const Area& area, __m128i& mc, uint64_t& indices) noexcept
 {
 	const int zerobit = area.ZeroIndex * 2 + 1;
 
-	if (indices & (1ui64 << zerobit))
+	if (indices & (1uLL << zerobit))
 	{
 		uint64_t mask = 0;
 
 		for (size_t i = 0, n = area.Count; i < n; i++)
 		{
-			mask |= 3ui64 << (area.Indices[i] << 1);
+			mask |= 3uLL << (area.Indices[i] << 1);
 		}
 
 		indices ^= mask;
@@ -421,13 +422,13 @@ void AreaReduceTable3(const Area& area, __m128i& mc, uint64_t& indices) noexcept
 {
 	const int zerobit = area.ZeroIndex * 3 + 2;
 
-	if (indices & (1ui64 << zerobit))
+	if (indices & (1uLL << zerobit))
 	{
 		uint64_t mask = 0;
 
 		for (size_t i = 0, n = area.Count; i < n; i++)
 		{
-			mask |= 7ui64 << (area.Indices[i] * 3);
+			mask |= 7uLL << (area.Indices[i] * 3);
 		}
 
 		indices ^= mask;
@@ -441,7 +442,7 @@ void AreaReduceTable4(__m128i& mc, uint64_t& indices) noexcept
 {
 	const int zerobit = 0 * 4 + 3;
 
-	if (indices & (1ui64 << zerobit))
+	if (indices & (1uLL << zerobit))
 	{
 		indices = ~indices;
 
@@ -800,7 +801,7 @@ NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, cons
 	}
 }
 
-void DecompressBlock(uint8_t input[16], Cell& output) noexcept
+static void DecompressBlock(uint8_t input[16], Cell& output) noexcept
 {
 	const int encoded_mode = input[0];
 	if (encoded_mode & 0xF)
@@ -920,7 +921,7 @@ static void CompressBlockFastOpaque(Cell& input) noexcept
 	}
 }
 
-void CompressBlock(uint8_t output[16], Cell& input) noexcept
+static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 {
 	if (!output[0])
 	{
@@ -1157,9 +1158,10 @@ void CompressBlock(uint8_t output[16], Cell& input) noexcept
 #endif
 }
 
+#if defined(OPTION_COUNTERS)
+
 void CompressStatistics()
 {
-#if defined(OPTION_COUNTERS)
 	PRINTF("[Transparent]\tM4 = %i, M6 = %i, M5 = %i, M7 = %i",
 		gCounterModes[4].load(), gCounterModes[6].load(), gCounterModes[5].load(), gCounterModes[7].load());
 
@@ -1192,5 +1194,139 @@ void CompressStatistics()
 		gLevels[9].load(), gLevels[10].load(), gLevels[11].load(), gLevels[12].load());
 	PRINTF("\t\t[13] = %i, [14] = %i, [15] = %i, [16] = %i",
 		gLevels[13].load(), gLevels[14].load(), gLevels[15].load(), gLevels[16].load());
+}
+
 #endif
+
+static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
+{
+	const __m128i mrot = _mm_set_epi8(
+		0 + 12, 2 + 12, 1 + 12, 3 + 12,
+		0 + 8, 2 + 8, 1 + 8, 3 + 8,
+		0 + 4, 2 + 4, 1 + 4, 3 + 4,
+		0, 2, 1, 3);
+
+	return _mm_shuffle_epi8(mc, mrot);
+}
+
+static void InitTables(bool doDraft, bool doFast, bool doNormal, bool doSlow)
+{
+	gDoDraft = doDraft;
+	gDoFast = doFast;
+	gDoNormal = doNormal;
+	gDoSlow = doSlow;
+
+	{
+		static bool gsInited = false;
+		if (gsInited)
+		{
+			return;
+		}
+		gsInited = true;
+	}
+
+	InitInterpolation();
+	InitShrinked();
+	InitSelection();
+	InitLevels();
+
+#if defined(OPTION_PCA)
+	InitPCA();
+#endif
+}
+
+static void DecompressKernel(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept
+{
+	(void)pErrorAlpha;
+	(void)pErrorColor;
+	(void)pssim;
+
+	Cell output;
+
+	for (auto it = begin; it != end; it++)
+	{
+		DecompressBlock(it->_Output, output);
+
+		{
+			const uint8_t* p = it->_Cell;
+
+			_mm_storeu_si128((__m128i*)p, ConvertBgraToAgrb(output.ImageRows_U8[0]));
+
+			p += stride;
+
+			_mm_storeu_si128((__m128i*)p, ConvertBgraToAgrb(output.ImageRows_U8[1]));
+
+			p += stride;
+
+			_mm_storeu_si128((__m128i*)p, ConvertBgraToAgrb(output.ImageRows_U8[2]));
+
+			p += stride;
+
+			_mm_storeu_si128((__m128i*)p, ConvertBgraToAgrb(output.ImageRows_U8[3]));
+		}
+	}
+}
+
+static void CompressKernel(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept
+{
+	Cell input;
+
+	for (auto it = begin; it != end; it++)
+	{
+		{
+			const uint8_t* p = it->_Cell;
+
+			input.ImageRows_U8[0] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+
+			p += stride;
+
+			input.ImageRows_U8[1] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+
+			p += stride;
+
+			input.ImageRows_U8[2] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+
+			p += stride;
+
+			input.ImageRows_U8[3] = ConvertBgraToAgrb(_mm_loadu_si128((const __m128i*)p));
+		}
+
+		{
+			const uint8_t* p = it->_Mask;
+
+			input.MaskRows_S8[0] = _mm_loadu_si128((const __m128i*)p);
+
+			p += stride;
+
+			input.MaskRows_S8[1] = _mm_loadu_si128((const __m128i*)p);
+
+			p += stride;
+
+			input.MaskRows_S8[2] = _mm_loadu_si128((const __m128i*)p);
+
+			p += stride;
+
+			input.MaskRows_S8[3] = _mm_loadu_si128((const __m128i*)p);
+		}
+
+		CompressBlock(it->_Output, input);
+
+		pErrorAlpha += input.Error.Alpha;
+		pErrorColor += input.Error.Total - input.Error.Alpha;
+
+		pssim.Alpha += input.Quality.Alpha;
+		pssim.Color += input.Quality.Color;
+	}
+}
+
+bool GetBc7Core(void* bc7Core)
+{
+	IBc7Core* p = reinterpret_cast<IBc7Core*>(bc7Core);
+
+	p->pInitTables = &InitTables;
+
+	p->pDecompress = &DecompressKernel;
+	p->pCompress = &CompressKernel;
+
+	return true;
 }

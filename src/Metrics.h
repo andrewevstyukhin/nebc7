@@ -48,5 +48,3 @@ constexpr double gSsim16k2L = gSsim16k1L * 9;
 BlockError CompareBlocks(const Cell& cell1, const Cell& cell2) noexcept;
 
 BlockSSIM CompareBlocksSSIM(const Cell& cell1, const Cell& cell2) noexcept;
-
-bool DetectGlitches(const Cell& input, const Cell& output) noexcept;

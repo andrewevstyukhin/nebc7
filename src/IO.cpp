@@ -13,7 +13,7 @@
 
 #include <string>
 
-#if defined(WIN32)
+#if !defined(OPTION_LIBRARY) && defined(WIN32)
 
 bool ReadImage(const char* src_name, uint8_t* &pixels, int &width, int &height, bool flip)
 {

@@ -156,7 +156,7 @@ namespace Mode4 {
 	{
 		uint64_t data1 = RemoveZeroBit(data3, 2);
 		data1 <<= (64 - 47); data1 |= data2 >> (32 - 17);
-		uint64_t data0 = RemoveZeroBit(data2, 1) & ((1ui64 << 14) - 1ui64);
+		uint64_t data0 = RemoveZeroBit(data2, 1) & ((1uLL << 14) - 1uLL);
 
 		mc0 = _mm_srli_epi16(mc0, 2);
 

@@ -274,10 +274,39 @@ namespace Mode7 {
 
 } // namespace Mode7
 
-void DecompressBlock(uint8_t input[16], Cell& output) noexcept;
-
-void CompressBlock(uint8_t output[16], Cell& input) noexcept;
+#if defined(OPTION_COUNTERS)
 
 void CompressStatistics();
 
-extern bool gDoDraft, gDoFast, gDoNormal, gDoSlow;
+#endif
+
+struct WorkerItem
+{
+	uint8_t* _Output;
+	uint8_t* _Cell;
+	uint8_t* _Mask;
+
+	WorkerItem()
+	{
+	}
+
+	WorkerItem(uint8_t* output, uint8_t* cell, uint8_t* mask)
+		: _Output(output)
+		, _Cell(cell)
+		, _Mask(mask)
+	{
+	}
+};
+
+using PInitTables = void(*)(bool doDraft, bool doFast, bool doNormal, bool doSlow);
+
+using PBlockKernel = void(*)(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept;
+
+struct IBc7Core
+{
+	PInitTables pInitTables;
+
+	PBlockKernel pDecompress, pCompress;
+};
+
+//bool GetBc7Core(void* bc7Core);
