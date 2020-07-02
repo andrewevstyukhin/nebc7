@@ -25,6 +25,10 @@ BlockError CompareBlocks(const Cell& cell1, const Cell& cell2) noexcept
 		__m256i vc2 = _mm256_cvtepu8_epi16(_mm_load_si128(&cell2.ImageRows_U8[y]));
 		__m256i vd = _mm256_sub_epi16(vc1, vc2);
 
+		vd = _mm256_abs_epi16(vd);
+
+		vd = _mm256_srli_epi16(vd, kDenoise);
+
 		__m256i vmask = _mm256_cvtepi8_epi16(_mm_load_si128(&cell1.MaskRows_S8[y]));
 		vd = _mm256_and_si256(vd, vmask);
 
@@ -58,6 +62,12 @@ BlockError CompareBlocks(const Cell& cell1, const Cell& cell2) noexcept
 
 		__m128i mdL = _mm_sub_epi16(mc1L, mc2L);
 		__m128i mdH = _mm_sub_epi16(mc1H, mc2H);
+
+		mdL = _mm_abs_epi16(mdL);
+		mdH = _mm_abs_epi16(mdH);
+
+		mdL = _mm_srli_epi16(mdL, kDenoise);
+		mdH = _mm_srli_epi16(mdH, kDenoise);
 
 		__m128i mmask = _mm_load_si128(&cell1.MaskRows_S8[y]);
 

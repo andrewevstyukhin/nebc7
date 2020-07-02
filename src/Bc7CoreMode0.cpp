@@ -13,7 +13,7 @@
 
 namespace Mode0 {
 
-	constexpr int LevelsCapacity = 48;
+	constexpr int LevelsCapacity = 32;
 
 #if defined(OPTION_COUNTERS)
 	static std::atomic_int gComputeSubsetError3, gComputeSubsetError3GR, gComputeSubsetError3GB;
@@ -188,13 +188,15 @@ namespace Mode0 {
 
 	void CompressBlockFast(Cell& input) noexcept
 	{
+		const int denoiseStep = input.DenoiseStep;
+
 		for (size_t partitionIndex = 0; partitionIndex < 16; partitionIndex++)
 		{
 			__m128i mc0 = _mm_setzero_si128();
 			__m128i mc1 = _mm_setzero_si128();
 			__m128i mc2 = _mm_setzero_si128();
 
-			int error = input.OpaqueAlphaError;
+			int error = input.OpaqueAlphaError + denoiseStep;
 			if (error < input.Error.Total)
 			{
 				Area& area1 = GetArea(input.Area13[partitionIndex], input.LazyArea13[partitionIndex], input, gTableSelection13[partitionIndex]);
@@ -215,7 +217,7 @@ namespace Mode0 {
 
 						if (input.Error.Total > error)
 						{
-							input.Error.Total = error;
+							input.Error.Total = error - denoiseStep;
 
 							input.BestColor0 = mc0;
 							input.BestColor1 = mc1;
@@ -223,7 +225,7 @@ namespace Mode0 {
 							input.BestParameter = partitionIndex;
 							input.BestMode = 0;
 
-							if (error <= input.OpaqueAlphaError)
+							if (error <= input.OpaqueAlphaError + denoiseStep)
 								return;
 						}
 					}
@@ -309,7 +311,7 @@ namespace Mode0 {
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError3GR++;
 #endif
-						e2 = ComputeOpaqueSubsetError3Pair<_MM_SHUFFLE(2, 1, 2, 1)>(area, mc, gWeightsGRGR, gFixWeightsGR, _mm_cvtsi32_si128(water - min3));
+						e2 = ComputeOpaqueSubsetError3Pair<_MM_SHUFFLE(2, 1, 2, 1)>(area, mc, gWeightsGRGR, _mm_cvtsi32_si128(water - min3));
 						if (e2 + min3 >= water)
 							continue;
 					}
@@ -333,7 +335,7 @@ namespace Mode0 {
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError3GB++;
 #endif
-							egb = ComputeOpaqueSubsetError3Pair<_MM_SHUFFLE(3, 1, 3, 1)>(area, mc, gWeightsGBGB, gFixWeightsGB, _mm_cvtsi32_si128(water - min2));
+							egb = ComputeOpaqueSubsetError3Pair<_MM_SHUFFLE(3, 1, 3, 1)>(area, mc, gWeightsGBGB, _mm_cvtsi32_si128(water - min2));
 							memGB[i3] = egb;
 						}
 						if (egb + min2 >= water)
@@ -539,6 +541,8 @@ namespace Mode0 {
 		int lines2[16];
 		int lines3[16];
 
+		const int denoiseStep = input.DenoiseStep;
+
 		size_t partitionsCount = 0;
 		for (size_t partitionIndex = 0; partitionIndex < 16; partitionIndex++)
 		{
@@ -547,7 +551,7 @@ namespace Mode0 {
 
 			Area& area1 = GetArea(input.Area13[partitionIndex], input.LazyArea13[partitionIndex], input, gTableSelection13[partitionIndex]);
 
-			const int water1 = input.Error.Total - input.OpaqueAlphaError;
+			const int water1 = input.Error.Total - denoiseStep - input.OpaqueAlphaError;
 			int line1 = EstimateLevels(area1, water1, estimations1[partitionIndex]);
 			if (line1 < water1)
 			{
@@ -566,7 +570,7 @@ namespace Mode0 {
 						lines2[partitionIndex] = line2;
 						lines3[partitionIndex] = line3;
 
-						order[partitionsCount++].Init(input.OpaqueAlphaError + line1 + line2 + line3, static_cast<int>(partitionIndex));
+						order[partitionsCount++].Init(input.OpaqueAlphaError + line1 + line2 + line3 + denoiseStep, static_cast<int>(partitionIndex));
 					}
 				}
 			}
@@ -594,7 +598,7 @@ namespace Mode0 {
 
 				Area& area1 = GetArea(input.Area13[partitionIndex], input.LazyArea13[partitionIndex], input, gTableSelection13[partitionIndex]);
 
-				const int water1 = input.Error.Total - input.OpaqueAlphaError - lines2[partitionIndex] - line3;
+				const int water1 = input.Error.Total - denoiseStep - input.OpaqueAlphaError - lines2[partitionIndex] - line3;
 				Subsets subsets1;
 				if (subsets1.InitLevels(area1, water1, estimations1[partitionIndex]))
 				{
@@ -605,23 +609,23 @@ namespace Mode0 {
 
 						Area& area2 = GetArea(input.Area23[partitionIndex], input.LazyArea23[partitionIndex], input, gTableSelection23[partitionIndex]);
 
-						const int water2 = input.Error.Total - error - line3;
+						const int water2 = input.Error.Total - denoiseStep - error - line3;
 						Subsets subsets2;
 						if (subsets2.InitLevels(area2, water2, estimations2[partitionIndex]))
 						{
 							error += subsets2.TryVariants(area2, mc1, water2);
 
-							if (error < input.Error.Total - line3)
+							if (error < input.Error.Total - denoiseStep - line3)
 							{
 								Area& area3 = GetArea(input.Area33[partitionIndex], input.LazyArea33[partitionIndex], input, gTableSelection33[partitionIndex]);
 
-								const int water3 = input.Error.Total - error;
+								const int water3 = input.Error.Total - denoiseStep - error;
 								Subsets subsets3;
 								if (subsets3.InitLevels(area3, water3, estimations3[partitionIndex]))
 								{
 									error += subsets3.TryVariants(area3, mc2, water3);
 
-									if (input.Error.Total > error)
+									if (input.Error.Total > error + denoiseStep)
 									{
 										input.Error.Total = error;
 

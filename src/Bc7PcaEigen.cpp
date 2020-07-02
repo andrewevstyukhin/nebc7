@@ -91,6 +91,8 @@ int PrincipalComponentAnalysis3(const Area& area)
 
 		__m128i md = _mm_cvttps_epi32(me);
 
+		md = _mm_srli_epi16(md, kDenoise);
+
 		md = _mm_mullo_epi16(md, md);
 
 		msum = _mm_add_epi32(msum, md);
@@ -164,6 +166,8 @@ int PrincipalComponentAnalysis4(const Area& area)
 		me = _mm_max_ps(me, _mm_setzero_ps());
 
 		__m128i md = _mm_cvttps_epi32(me);
+
+		md = _mm_srli_epi16(md, kDenoise);
 
 		md = _mm_mullo_epi16(md, md);
 

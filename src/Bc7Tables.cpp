@@ -614,6 +614,8 @@ void InitLevels() noexcept
 					mv = _mm_sub_epi16(mv, mx);
 					mv = _mm_abs_epi16(mv);
 
+					mv = _mm_srli_epi16(mv, kDenoise);
+
 					gTableDeltas2_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
 				}
 			}
@@ -663,6 +665,8 @@ void InitLevels() noexcept
 
 					mv = _mm_sub_epi16(mv, mx);
 					mv = _mm_abs_epi16(mv);
+
+					mv = _mm_srli_epi16(mv, kDenoise);
 
 					gTableDeltas3_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
 				}
@@ -731,6 +735,8 @@ void InitLevels() noexcept
 
 					__m128i mv = _mm_min_epu16(mv0, mv1);
 
+					mv = _mm_srli_epi16(mv, kDenoise);
+
 					gTableDeltas4_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
 				}
 			}
@@ -749,15 +755,6 @@ alignas(16) const __m128i gWeightsARAR = _mm_set_epi16(kRed, kAlpha, kRed, kAlph
 alignas(16) const __m128i gWeightsGRB = _mm_set_epi16(kBlue, kRed, kGreen, 0, kBlue, kRed, kGreen, 0);
 alignas(16) const __m128i gWeightsGRGR = _mm_set_epi16(kRed, kGreen, kRed, kGreen, kRed, kGreen, kRed, kGreen);
 alignas(16) const __m128i gWeightsGBGB = _mm_set_epi16(kBlue, kGreen, kBlue, kGreen, kBlue, kGreen, kBlue, kGreen);
-
-alignas(16) const __m128i gFixWeightsAGRB = _mm_set1_epi32(0x8000 * (kAlpha + kColor));
-alignas(16) const __m128i gFixWeightsAGR = _mm_set1_epi32(0x8000 * (kAlpha + kGreen + kRed));
-alignas(16) const __m128i gFixWeightsAGB = _mm_set1_epi32(0x8000 * (kAlpha + kGreen + kBlue));
-alignas(16) const __m128i gFixWeightsAG = _mm_set1_epi32(0x8000 * (kAlpha + kGreen));
-alignas(16) const __m128i gFixWeightsAR = _mm_set1_epi32(0x8000 * (kAlpha + kRed));
-alignas(16) const __m128i gFixWeightsGRB = _mm_set1_epi32(0x8000 * kColor);
-alignas(16) const __m128i gFixWeightsGR = _mm_set1_epi32(0x8000 * (kGreen + kRed));
-alignas(16) const __m128i gFixWeightsGB = _mm_set1_epi32(0x8000 * (kGreen + kBlue));
 
 
 alignas(32) const int gRotationsMode4[8] = { 0 + 4, 0, 2 + 4, 2, 1 + 4, 1, 3 + 4, 3 };

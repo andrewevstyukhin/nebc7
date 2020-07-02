@@ -22,6 +22,9 @@ enum { kAlpha = 1000, kGreen = 715, kRed = 213, kBlue = 72 };
 
 enum { kColor = kGreen + kRed + kBlue };
 
+//enum { kDenoise = 1, kDenoiseStep = 0 };
+enum { kDenoise = 1, kDenoiseStep = 3 * 3 };
+
 #if defined(OPTION_AVX512) && (!defined(__AVX512F__) || !defined(__AVX512BW__) || !defined(__AVX512VL__) || defined(OPTION_SLOWPOKE))
 #error AVX-512 is required
 #endif

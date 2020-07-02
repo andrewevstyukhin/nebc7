@@ -60,9 +60,6 @@ void InitLevels() noexcept;
 alignas(16) extern const __m128i gWeightsAGRB, gWeightsAGR, gWeightsAGB, gWeightsAG, gWeightsAR, gWeightsAGAG, gWeightsARAR;
 alignas(16) extern const __m128i gWeightsGRB, gWeightsGRGR, gWeightsGBGB;
 
-alignas(16) extern const __m128i gFixWeightsAGRB, gFixWeightsAGR, gFixWeightsAGB, gFixWeightsAG, gFixWeightsAR;
-alignas(16) extern const __m128i gFixWeightsGRB, gFixWeightsGR, gFixWeightsGB;
-
 
 alignas(32) extern const int gRotationsMode4[8];
 alignas(16) extern const int gRotationsMode5[4];

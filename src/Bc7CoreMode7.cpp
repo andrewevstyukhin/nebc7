@@ -137,7 +137,7 @@ namespace Mode7 {
 		return error;
 	}
 
-	static INLINED int ComputeSubsetError2(const Area& area, __m128i mc, const __m128i mweights, const __m128i mfix, const __m128i mwater) noexcept
+	static INLINED int ComputeSubsetError2(const Area& area, __m128i mc, const __m128i mweights, const __m128i mwater) noexcept
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
@@ -145,8 +145,6 @@ namespace Mode7 {
 		const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 		const __m256i vhalf = _mm256_set1_epi16(32);
-		const __m256i vsign = _mm256_set1_epi16(-0x8000);
-		const __m128i mfix4 = _mm_slli_epi32(mfix, 2);
 
 		mc = _mm_packus_epi16(mc, mc);
 		__m256i vc = _mm256_broadcastq_epi64(mc);
@@ -172,22 +170,25 @@ namespace Mode7 {
 			__m256i vpixel0 = _mm256_unpacklo_epi64(vpacked0, vpacked0);
 			__m256i vpixel1 = _mm256_unpacklo_epi64(vpacked1, vpacked1);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix4);
-
 			__m256i vx = _mm256_sub_epi16(vpixel0, vtx);
 			__m256i vy = _mm256_sub_epi16(vpixel0, vty);
 			__m256i vz = _mm256_sub_epi16(vpixel1, vtx);
 			__m256i vw = _mm256_sub_epi16(vpixel1, vty);
 
+			vx = _mm256_abs_epi16(vx);
+			vy = _mm256_abs_epi16(vy);
+			vz = _mm256_abs_epi16(vz);
+			vw = _mm256_abs_epi16(vw);
+
+			vx = _mm256_srli_epi16(vx, kDenoise);
+			vy = _mm256_srli_epi16(vy, kDenoise);
+			vz = _mm256_srli_epi16(vz, kDenoise);
+			vw = _mm256_srli_epi16(vw, kDenoise);
+
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
 			vz = _mm256_mullo_epi16(vz, vz);
 			vw = _mm256_mullo_epi16(vw, vw);
-
-			vx = _mm256_xor_si256(vx, vsign);
-			vy = _mm256_xor_si256(vy, vsign);
-			vz = _mm256_xor_si256(vz, vsign);
-			vw = _mm256_xor_si256(vw, vsign);
 
 			vx = _mm256_madd_epi16(vx, vweights);
 			vy = _mm256_madd_epi16(vy, vweights);
@@ -220,17 +221,17 @@ namespace Mode7 {
 			__m256i vpacked = _mm256_load_si256(p);
 			__m256i vpixel = _mm256_unpacklo_epi64(vpacked, vpacked);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 			__m256i vx = _mm256_sub_epi16(vpixel, vtx);
 			__m256i vy = _mm256_sub_epi16(vpixel, vty);
 
+			vx = _mm256_abs_epi16(vx);
+			vy = _mm256_abs_epi16(vy);
+
+			vx = _mm256_srli_epi16(vx, kDenoise);
+			vy = _mm256_srli_epi16(vy, kDenoise);
+
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
-
-			vx = _mm256_xor_si256(vx, vsign);
-			vy = _mm256_xor_si256(vy, vsign);
 
 			vx = _mm256_madd_epi16(vx, vweights);
 			vy = _mm256_madd_epi16(vy, vweights);
@@ -252,13 +253,13 @@ namespace Mode7 {
 			__m128i mpacked = _mm_load_si128((const __m128i*)p);
 			__m256i vpixel = _mm256_broadcastq_epi64(mpacked);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 			__m256i vx = _mm256_sub_epi16(vpixel, vt);
 
-			vx = _mm256_mullo_epi16(vx, vx);
+			vx = _mm256_abs_epi16(vx);
 
-			vx = _mm256_xor_si256(vx, vsign);
+			vx = _mm256_srli_epi16(vx, kDenoise);
+
+			vx = _mm256_mullo_epi16(vx, vx);
 
 			vx = _mm256_madd_epi16(vx, vweights);
 
@@ -270,7 +271,6 @@ namespace Mode7 {
 		}
 #else
 		const __m128i mhalf = _mm_set1_epi16(32);
-		const __m128i msign = _mm_set1_epi16(-0x8000);
 
 		mc = _mm_packus_epi16(mc, mc);
 
@@ -291,16 +291,17 @@ namespace Mode7 {
 			__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 			__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 			__m128i mx = _mm_sub_epi16(mpixel, mtx);
 			__m128i my = _mm_sub_epi16(mpixel, mty);
 
+			mx = _mm_abs_epi16(mx);
+			my = _mm_abs_epi16(my);
+
+			mx = _mm_srli_epi16(mx, kDenoise);
+			my = _mm_srli_epi16(my, kDenoise);
+
 			mx = _mm_mullo_epi16(mx, mx);
 			my = _mm_mullo_epi16(my, my);
-
-			mx = _mm_xor_si128(mx, msign);
-			my = _mm_xor_si128(my, msign);
 
 			mx = _mm_madd_epi16(mx, mweights);
 			my = _mm_madd_epi16(my, mweights);
@@ -322,7 +323,7 @@ namespace Mode7 {
 	}
 
 	template<int shuffle>
-	static INLINED int ComputeSubsetError2Pair(const Area& area, __m128i mc, const __m128i mweights, const __m128i mfix, const __m128i mwater) noexcept
+	static INLINED int ComputeSubsetError2Pair(const Area& area, __m128i mc, const __m128i mweights, const __m128i mwater) noexcept
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
@@ -330,8 +331,6 @@ namespace Mode7 {
 		const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 		const __m256i vhalf = _mm256_set1_epi16(32);
-		const __m256i vsign = _mm256_set1_epi16(-0x8000);
-		const __m128i mfix4 = _mm_slli_epi32(mfix, 2);
 
 		mc = _mm_shuffle_epi32(mc, shuffle);
 		mc = _mm_packus_epi16(mc, mc);
@@ -357,16 +356,17 @@ namespace Mode7 {
 			vpixel0 = _mm256_unpacklo_epi64(vpixel0, vpixel0);
 			vpixel1 = _mm256_unpacklo_epi64(vpixel1, vpixel1);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix4);
-
 			__m256i vx = _mm256_sub_epi16(vpixel0, vt);
 			__m256i vy = _mm256_sub_epi16(vpixel1, vt);
 
+			vx = _mm256_abs_epi16(vx);
+			vy = _mm256_abs_epi16(vy);
+
+			vx = _mm256_srli_epi16(vx, kDenoise);
+			vy = _mm256_srli_epi16(vy, kDenoise);
+
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
-
-			vx = _mm256_xor_si256(vx, vsign);
-			vy = _mm256_xor_si256(vy, vsign);
 
 			vx = _mm256_madd_epi16(vx, vweights);
 			vy = _mm256_madd_epi16(vy, vweights);
@@ -393,14 +393,13 @@ namespace Mode7 {
 			__m256i vpixel = _mm256_shufflelo_epi16(vpacked, shuffle);
 			vpixel = _mm256_unpacklo_epi64(vpixel, vpixel);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 			__m256i vx = _mm256_sub_epi16(vpixel, vt);
 
-			vx = _mm256_mullo_epi16(vx, vx);
+			vx = _mm256_abs_epi16(vx);
 
-			vx = _mm256_xor_si256(vx, vsign);
+			vx = _mm256_srli_epi16(vx, kDenoise);
+
+			vx = _mm256_mullo_epi16(vx, vx);
 
 			vx = _mm256_madd_epi16(vx, vweights);
 
@@ -419,13 +418,13 @@ namespace Mode7 {
 			__m128i mpixel = _mm_shufflelo_epi16(mpacked, shuffle);
 			mpixel = _mm_unpacklo_epi64(mpixel, mpixel);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 			__m128i mx = _mm_sub_epi16(mpixel, _mm256_castsi256_si128(vt));
 
-			mx = _mm_mullo_epi16(mx, mx);
+			mx = _mm_abs_epi16(mx);
 
-			mx = _mm_xor_si128(mx, _mm256_castsi256_si128(vsign));
+			mx = _mm_srli_epi16(mx, kDenoise);
+
+			mx = _mm_mullo_epi16(mx, mx);
 
 			mx = _mm_madd_epi16(mx, _mm256_castsi256_si128(vweights));
 
@@ -436,7 +435,6 @@ namespace Mode7 {
 		}
 #else
 		const __m128i mhalf = _mm_set1_epi16(32);
-		const __m128i msign = _mm_set1_epi16(-0x8000);
 
 		mc = _mm_shuffle_epi32(mc, shuffle);
 		mc = _mm_packus_epi16(mc, mc);
@@ -455,13 +453,13 @@ namespace Mode7 {
 			__m128i mpixel = _mm_shufflelo_epi16(mpacked, shuffle);
 			mpixel = _mm_unpacklo_epi64(mpixel, mpixel);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 			__m128i mx = _mm_sub_epi16(mpixel, mt);
 
-			mx = _mm_mullo_epi16(mx, mx);
+			mx = _mm_abs_epi16(mx);
 
-			mx = _mm_xor_si128(mx, msign);
+			mx = _mm_srli_epi16(mx, kDenoise);
+
+			mx = _mm_mullo_epi16(mx, mx);
 
 			mx = _mm_madd_epi16(mx, mweights);
 
@@ -500,7 +498,7 @@ namespace Mode7 {
 		_mm_store_si128((__m128i*)&state.Values_I16[0], mtx);
 		_mm_store_si128((__m128i*)&state.Values_I16[2], mty);
 
-		int error = ComputeSubsetTable(area, gWeightsAGRB, gFixWeightsAGRB, state, 4);
+		int error = ComputeSubsetTable(area, gWeightsAGRB, state, 4);
 
 		for (size_t i = 0, n = area.Count; i < n; i++)
 		{
@@ -512,6 +510,8 @@ namespace Mode7 {
 		for (size_t i = 0, n = area.Count; i < n; i++)
 		{
 			int da = *(const uint16_t*)&state.Values_I16[state.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
+
+			da = (da < 0 ? -da : da) >> kDenoise;
 
 			errorAlpha += da * da;
 		}
@@ -561,17 +561,19 @@ namespace Mode7 {
 		if (ea >= water)
 			return water;
 
-		return ComputeSubsetError2(area, mc, gWeightsAGRB, gFixWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
+		return ComputeSubsetError2(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
 	}
 
 	void CompressBlockFast(Cell& input) noexcept
 	{
+		const int denoiseStep = input.DenoiseStep;
+
 		for (size_t partitionIndex = 0; partitionIndex < 64; partitionIndex++)
 		{
 			__m128i mc0 = _mm_setzero_si128();
 			__m128i mc1 = _mm_setzero_si128();
 
-			int error = 0;
+			int error = denoiseStep;
 			if (error < input.Error.Total)
 			{
 				Area& area1 = GetArea(input.Area12[partitionIndex], input.LazyArea12[partitionIndex], input, gTableSelection12[partitionIndex]);
@@ -586,14 +588,14 @@ namespace Mode7 {
 
 					if (input.Error.Total > error)
 					{
-						input.Error.Total = error;
+						input.Error.Total = error - denoiseStep;
 
 						input.BestColor0 = mc0;
 						input.BestColor1 = mc1;
 						input.BestParameter = partitionIndex;
 						input.BestMode = 7;
 
-						if (error <= 0)
+						if (error <= denoiseStep)
 							return;
 					}
 				}
@@ -696,7 +698,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError2AG++;
 #endif
-						e1 = ComputeSubsetError2Pair<_MM_SHUFFLE(1, 0, 1, 0)>(area, mc, gWeightsAGAG, gFixWeightsAG, _mm_cvtsi32_si128(water - ea - min2 - min3)) + ea;
+						e1 = ComputeSubsetError2Pair<_MM_SHUFFLE(1, 0, 1, 0)>(area, mc, gWeightsAGAG, _mm_cvtsi32_si128(water - ea - min2 - min3)) + ea;
 						if (e1 + min2 + min3 >= water)
 							continue;
 					}
@@ -727,7 +729,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError2AR++;
 #endif
-								ear = ComputeSubsetError2Pair<_MM_SHUFFLE(2, 0, 2, 0)>(area, mc, gWeightsARAR, gFixWeightsAR, _mm_cvtsi32_si128(water - ea - min1 - min3)) + ea;
+								ear = ComputeSubsetError2Pair<_MM_SHUFFLE(2, 0, 2, 0)>(area, mc, gWeightsARAR, _mm_cvtsi32_si128(water - ea - min1 - min3)) + ea;
 								memAR[i2] = ear;
 							}
 							if (ear + min1 + min3 >= water)
@@ -744,7 +746,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError2AGR++;
 #endif
-							e2 = ComputeSubsetError2(area, mc, gWeightsAGR, gFixWeightsAGR, _mm_cvtsi32_si128(water - ea - min3)) + ea;
+							e2 = ComputeSubsetError2(area, mc, gWeightsAGR, _mm_cvtsi32_si128(water - ea - min3)) + ea;
 							if (e2 + min3 >= water)
 								continue;
 						}
@@ -769,7 +771,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError2AGB++;
 #endif
-								eagb = ComputeSubsetError2(area, mc, gWeightsAGB, gFixWeightsAGB, _mm_cvtsi32_si128(water - ea - min2)) + ea;
+								eagb = ComputeSubsetError2(area, mc, gWeightsAGB, _mm_cvtsi32_si128(water - ea - min2)) + ea;
 								memAGB[i3] = eagb;
 							}
 							if (eagb + min2 >= water)
@@ -785,7 +787,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError2++;
 #endif
-							int err = ComputeSubsetError2(area, mc, gWeightsAGRB, gFixWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
+							int err = ComputeSubsetError2(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
 
 							if (water > err)
 							{
@@ -873,7 +875,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError2++;
 #endif
-			int water1 = ComputeSubsetError2(area1, mc0, gWeightsAGRB, gFixWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalAlphaError + kBlockMaximalColorError));
+			int water1 = ComputeSubsetError2(area1, mc0, gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalAlphaError + kBlockMaximalColorError));
 			water1 += ComputeSubsetTransparentError2(area1, _mm_extract_epi16(_mm_packus_epi16(mc0, mc0), 0));
 			if (water1)
 			{
@@ -893,7 +895,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError2++;
 #endif
-			int water2 = ComputeSubsetError2(area2, mc1, gWeightsAGRB, gFixWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalAlphaError + kBlockMaximalColorError));
+			int water2 = ComputeSubsetError2(area2, mc1, gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalAlphaError + kBlockMaximalColorError));
 			water2 += ComputeSubsetTransparentError2(area2, _mm_extract_epi16(_mm_packus_epi16(mc1, mc1), 0));
 			if (water2)
 			{
@@ -996,6 +998,8 @@ namespace Mode7 {
 		int lines1[64];
 		int lines2[64];
 
+		const int denoiseStep = input.DenoiseStep;
+
 		size_t partitionsCount = 0;
 		for (size_t partitionIndex = 0; partitionIndex < 64; partitionIndex++)
 		{
@@ -1004,7 +1008,7 @@ namespace Mode7 {
 
 			Area& area1 = GetArea(input.Area12[partitionIndex], input.LazyArea12[partitionIndex], input, gTableSelection12[partitionIndex]);
 
-			const int water1 = input.Error.Total;
+			const int water1 = input.Error.Total - denoiseStep;
 			int line1 = EstimateBest(area1);
 			if (line1 < water1)
 			{
@@ -1017,7 +1021,7 @@ namespace Mode7 {
 					lines1[partitionIndex] = line1;
 					lines2[partitionIndex] = line2;
 
-					order[partitionsCount++].Init(line1 + line2, static_cast<int>(partitionIndex));
+					order[partitionsCount++].Init(line1 + line2 + denoiseStep, static_cast<int>(partitionIndex));
 				}
 			}
 		}
@@ -1046,7 +1050,7 @@ namespace Mode7 {
 				int line2 = lines2[partitionIndex];
 
 				Estimation estimations1;
-				int water1 = input.Error.Total - line2;
+				int water1 = input.Error.Total - denoiseStep - line2;
 				line1 = Max(line1, EstimateLevels(area1, water1, estimations1));
 				if (line1 < water1)
 				{
@@ -1055,20 +1059,20 @@ namespace Mode7 {
 					line2 = Max(line2, EstimateLevels(area2, water2, estimations2));
 					if (line2 < water2)
 					{
-						water1 = input.Error.Total - line2;
+						water1 = input.Error.Total - denoiseStep - line2;
 						Subsets subsets1;
 						if (subsets1.InitLevels(area1, water1, estimations1))
 						{
 							int error = subsets1.TryVariants(area1, mc0, water1);
 							if (error < water1)
 							{
-								water2 = input.Error.Total - error;
+								water2 = input.Error.Total - denoiseStep - error;
 								Subsets subsets2;
 								if (subsets2.InitLevels(area2, water2, estimations2))
 								{
 									error += subsets2.TryVariants(area2, mc1, water2);
 
-									if (input.Error.Total > error)
+									if (input.Error.Total > error + denoiseStep)
 									{
 										input.Error.Total = error;
 

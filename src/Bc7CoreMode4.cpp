@@ -11,7 +11,7 @@
 
 namespace Mode4 {
 
-	constexpr int LevelsCapacity = 48;
+	constexpr int LevelsCapacity = 32;
 
 #if defined(OPTION_COUNTERS)
 	static std::atomic_int gComputeSubsetError23[4], gComputeSubsetError23AG[4], gComputeSubsetError23AR[4], gComputeSubsetError23AGR[4], gComputeSubsetError23AGB[4];
@@ -182,15 +182,13 @@ namespace Mode4 {
 		*(uint64_t*)&output[8] = data1;
 	}
 
-	static INLINED int ComputeSubsetError23(const Area& area, __m128i mc, __m128i mweights, const __m128i mfix, const __m128i mwater, const int rotation) noexcept
+	static INLINED int ComputeSubsetError23(const Area& area, __m128i mc, __m128i mweights, const __m128i mwater, const int rotation) noexcept
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
 #if defined(OPTION_AVX2)
 		const __m256i vrot = _mm256_broadcastsi128_si256(GetRotationShuffleNarrow(rotation));
 		const __m256i vhalf = _mm256_set1_epi16(32);
-		const __m256i vsign = _mm256_set1_epi16(-0x8000);
-		const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
 		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastq_epi64(mweights), vrot);
 
 		mc = _mm_packus_epi16(mc, mc);
@@ -226,12 +224,20 @@ namespace Mode4 {
 			__m256i vpixel = _mm256_unpacklo_epi64(vpacked, vpacked);
 			__m256i vmask = _mm256_unpackhi_epi64(vpacked, vpacked);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix2);
-
 			__m256i vx = _mm256_sub_epi16(vpixel, vtx);
 			__m256i vy = _mm256_sub_epi16(vpixel, vty);
 			__m256i vz = _mm256_sub_epi16(vpixel, vtz);
 			__m256i vw = _mm256_sub_epi16(vpixel, vtw);
+
+			vx = _mm256_abs_epi16(vx);
+			vy = _mm256_abs_epi16(vy);
+			vz = _mm256_abs_epi16(vz);
+			vw = _mm256_abs_epi16(vw);
+
+			vx = _mm256_srli_epi16(vx, kDenoise);
+			vy = _mm256_srli_epi16(vy, kDenoise);
+			vz = _mm256_srli_epi16(vz, kDenoise);
+			vw = _mm256_srli_epi16(vw, kDenoise);
 
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
@@ -242,11 +248,6 @@ namespace Mode4 {
 			vy = _mm256_and_si256(vy, vmask);
 			vz = _mm256_and_si256(vz, vmask);
 			vw = _mm256_and_si256(vw, vmask);
-
-			vx = _mm256_xor_si256(vx, vsign);
-			vy = _mm256_xor_si256(vy, vsign);
-			vz = _mm256_xor_si256(vz, vsign);
-			vw = _mm256_xor_si256(vw, vsign);
 
 			__m256i va = _mm256_min_epi16(_mm256_min_epi16(vx, vy), _mm256_min_epi16(vz, vw));
 
@@ -274,7 +275,6 @@ namespace Mode4 {
 #else
 		const __m128i mrot = GetRotationShuffleNarrow(rotation);
 		const __m128i mhalf = _mm_set1_epi16(32);
-		const __m128i msign = _mm_set1_epi16(-0x8000);
 		mweights = _mm_shuffle_epi8(mweights, mrot);
 
 		mc = _mm_packus_epi16(mc, mc);
@@ -310,12 +310,20 @@ namespace Mode4 {
 			__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
 			__m128i mmask = _mm_unpackhi_epi64(mpacked, mpacked);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 			__m128i mx = _mm_sub_epi16(mpixel, mtx);
 			__m128i my = _mm_sub_epi16(mpixel, mty);
 			__m128i mz = _mm_sub_epi16(mpixel, mtz);
 			__m128i mw = _mm_sub_epi16(mpixel, mtw);
+
+			mx = _mm_abs_epi16(mx);
+			my = _mm_abs_epi16(my);
+			mz = _mm_abs_epi16(mz);
+			mw = _mm_abs_epi16(mw);
+
+			mx = _mm_srli_epi16(mx, kDenoise);
+			my = _mm_srli_epi16(my, kDenoise);
+			mz = _mm_srli_epi16(mz, kDenoise);
+			mw = _mm_srli_epi16(mw, kDenoise);
 
 			mx = _mm_mullo_epi16(mx, mx);
 			my = _mm_mullo_epi16(my, my);
@@ -326,11 +334,6 @@ namespace Mode4 {
 			my = _mm_and_si128(my, mmask);
 			mz = _mm_and_si128(mz, mmask);
 			mw = _mm_and_si128(mw, mmask);
-
-			mx = _mm_xor_si128(mx, msign);
-			my = _mm_xor_si128(my, msign);
-			mz = _mm_xor_si128(mz, msign);
-			mw = _mm_xor_si128(mw, msign);
 
 			__m128i ma = _mm_min_epi16(_mm_min_epi16(mx, my), _mm_min_epi16(mz, mw));
 
@@ -356,15 +359,13 @@ namespace Mode4 {
 		return _mm_cvtsi128_si32(merrorBlock);
 	}
 
-	static INLINED int ComputeSubsetError32(const Area& area, __m128i mc, __m128i mweights, const __m128i mfix, const __m128i mwater, const int rotation) noexcept
+	static INLINED int ComputeSubsetError32(const Area& area, __m128i mc, __m128i mweights, const __m128i mwater, const int rotation) noexcept
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
 #if defined(OPTION_AVX2)
 		const __m256i vrot = _mm256_broadcastsi128_si256(GetRotationShuffleNarrow(rotation));
 		const __m256i vhalf = _mm256_set1_epi16(32);
-		const __m256i vsign = _mm256_set1_epi16(-0x8000);
-		const __m128i mfix2 = _mm_add_epi32(mfix, mfix);
 		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastq_epi64(mweights), vrot);
 
 		mc = _mm_packus_epi16(mc, mc);
@@ -400,12 +401,20 @@ namespace Mode4 {
 			__m256i vpixel = _mm256_unpacklo_epi64(vpacked, vpacked);
 			__m256i vmask = _mm256_unpackhi_epi64(vpacked, vpacked);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix2);
-
 			__m256i vx = _mm256_sub_epi16(vpixel, vtx);
 			__m256i vy = _mm256_sub_epi16(vpixel, vty);
 			__m256i vz = _mm256_sub_epi16(vpixel, vtz);
 			__m256i vw = _mm256_sub_epi16(vpixel, vtw);
+
+			vx = _mm256_abs_epi16(vx);
+			vy = _mm256_abs_epi16(vy);
+			vz = _mm256_abs_epi16(vz);
+			vw = _mm256_abs_epi16(vw);
+
+			vx = _mm256_srli_epi16(vx, kDenoise);
+			vy = _mm256_srli_epi16(vy, kDenoise);
+			vz = _mm256_srli_epi16(vz, kDenoise);
+			vw = _mm256_srli_epi16(vw, kDenoise);
 
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
@@ -416,11 +425,6 @@ namespace Mode4 {
 			vy = _mm256_and_si256(vy, vmask);
 			vz = _mm256_and_si256(vz, vmask);
 			vw = _mm256_and_si256(vw, vmask);
-
-			vx = _mm256_xor_si256(vx, vsign);
-			vy = _mm256_xor_si256(vy, vsign);
-			vz = _mm256_xor_si256(vz, vsign);
-			vw = _mm256_xor_si256(vw, vsign);
 
 			__m256i va = _mm256_min_epi16(vx, vy);
 
@@ -452,7 +456,6 @@ namespace Mode4 {
 #else
 		const __m128i mrot = GetRotationShuffleNarrow(rotation);
 		const __m128i mhalf = _mm_set1_epi16(32);
-		const __m128i msign = _mm_set1_epi16(-0x8000);
 		mweights = _mm_shuffle_epi8(mweights, mrot);
 
 		mc = _mm_packus_epi16(mc, mc);
@@ -488,12 +491,20 @@ namespace Mode4 {
 			__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
 			__m128i mmask = _mm_unpackhi_epi64(mpacked, mpacked);
 
-			merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 			__m128i mx = _mm_sub_epi16(mpixel, mtx);
 			__m128i my = _mm_sub_epi16(mpixel, mty);
 			__m128i mz = _mm_sub_epi16(mpixel, mtz);
 			__m128i mw = _mm_sub_epi16(mpixel, mtw);
+
+			mx = _mm_abs_epi16(mx);
+			my = _mm_abs_epi16(my);
+			mz = _mm_abs_epi16(mz);
+			mw = _mm_abs_epi16(mw);
+
+			mx = _mm_srli_epi16(mx, kDenoise);
+			my = _mm_srli_epi16(my, kDenoise);
+			mz = _mm_srli_epi16(mz, kDenoise);
+			mw = _mm_srli_epi16(mw, kDenoise);
 
 			mx = _mm_mullo_epi16(mx, mx);
 			my = _mm_mullo_epi16(my, my);
@@ -504,11 +515,6 @@ namespace Mode4 {
 			my = _mm_and_si128(my, mmask);
 			mz = _mm_and_si128(mz, mmask);
 			mw = _mm_and_si128(mw, mmask);
-
-			mx = _mm_xor_si128(mx, msign);
-			my = _mm_xor_si128(my, msign);
-			mz = _mm_xor_si128(mz, msign);
-			mw = _mm_xor_si128(mw, msign);
 
 			__m128i ma = _mm_min_epi16(mx, my);
 
@@ -571,9 +577,8 @@ namespace Mode4 {
 			_mm_store_si128((__m128i*)&state3.Values_I16[2], _mm_and_si128(mmask3, mty));
 
 			const __m128i mweights3 = _mm_and_si128(mmask3, gWeightsAGRB);
-			const __m128i mfix3 = _mm_mullo_epi32(HorizontalSum4(_mm_cvtepu16_epi32(mweights3)), _mm_cvtsi32_si128(0x8000));
 
-			error3 = ComputeSubsetTable(area, mweights3, mfix3, state3, 4);
+			error3 = ComputeSubsetTable(area, mweights3, state3, 4);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{
@@ -586,6 +591,8 @@ namespace Mode4 {
 				for (size_t i = 0, n = area.Count; i < n; i++)
 				{
 					int da = *(const uint16_t*)&state3.Values_I16[state3.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
+
+					da = (da < 0 ? -da : da) >> kDenoise;
 
 					errorAlpha += da * da;
 				}
@@ -621,9 +628,8 @@ namespace Mode4 {
 			_mm_store_si128((__m128i*)&state1.Values_I16[6], _mm_andnot_si128(mmask3, mtw));
 
 			const __m128i mweights1 = _mm_andnot_si128(mmask3, gWeightsAGRB);
-			const __m128i mfix1 = _mm_mullo_epi32(HorizontalSum4(_mm_cvtepu16_epi32(mweights1)), _mm_cvtsi32_si128(0x8000));
 
-			error1 = ComputeSubsetTable(area, mweights1, mfix1, state1, 8);
+			error1 = ComputeSubsetTable(area, mweights1, state1, 8);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{
@@ -636,6 +642,8 @@ namespace Mode4 {
 				for (size_t i = 0, n = area.Count; i < n; i++)
 				{
 					int da = *(const uint16_t*)&state1.Values_I16[state1.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
+
+					da = (da < 0 ? -da : da) >> kDenoise;
 
 					errorAlpha += da * da;
 				}
@@ -686,9 +694,8 @@ namespace Mode4 {
 			_mm_store_si128((__m128i*)&state3.Values_I16[6], _mm_and_si128(mmask3, mtw));
 
 			const __m128i mweights3 = _mm_and_si128(mmask3, gWeightsAGRB);
-			const __m128i mfix3 = _mm_mullo_epi32(HorizontalSum4(_mm_cvtepu16_epi32(mweights3)), _mm_cvtsi32_si128(0x8000));
 
-			error3 = ComputeSubsetTable(area, mweights3, mfix3, state3, 8);
+			error3 = ComputeSubsetTable(area, mweights3, state3, 8);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{
@@ -701,6 +708,8 @@ namespace Mode4 {
 				for (size_t i = 0, n = area.Count; i < n; i++)
 				{
 					int da = *(const uint16_t*)&state3.Values_I16[state3.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
+
+					da = (da < 0 ? -da : da) >> kDenoise;
 
 					errorAlpha += da * da;
 				}
@@ -726,9 +735,8 @@ namespace Mode4 {
 			_mm_store_si128((__m128i*)&state1.Values_I16[2], _mm_andnot_si128(mmask3, mty));
 
 			const __m128i mweights1 = _mm_andnot_si128(mmask3, gWeightsAGRB);
-			const __m128i mfix1 = _mm_mullo_epi32(HorizontalSum4(_mm_cvtepu16_epi32(mweights1)), _mm_cvtsi32_si128(0x8000));
 
-			error1 = ComputeSubsetTable(area, mweights1, mfix1, state1, 4);
+			error1 = ComputeSubsetTable(area, mweights1, state1, 4);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{
@@ -741,6 +749,8 @@ namespace Mode4 {
 				for (size_t i = 0, n = area.Count; i < n; i++)
 				{
 					int da = *(const uint16_t*)&state1.Values_I16[state1.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
+
+					da = (da < 0 ? -da : da) >> kDenoise;
 
 					errorAlpha += da * da;
 				}
@@ -810,26 +820,28 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError32[rotation - 4]++;
 #endif
-			return ComputeSubsetError32(area, mc, gWeightsAGRB, gFixWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
+			return ComputeSubsetError32(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
 		}
 		else
 		{
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError23[rotation]++;
 #endif
-			return ComputeSubsetError23(area, mc, gWeightsAGRB, gFixWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
+			return ComputeSubsetError23(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
 		}
 	}
 
 	void CompressBlockFast(Cell& input) noexcept
 	{
+		const int denoiseStep = input.DenoiseStep;
+
 		for (int rotationIndex = 0; rotationIndex < 8; rotationIndex++)
 		{
 			const int rotation = gRotationsMode4[rotationIndex];
 
 			__m128i mc = _mm_setzero_si128();
 
-			int error = 0;
+			int error = denoiseStep;
 			if (error < input.Error.Total)
 			{
 				Area& area = input.Area1;
@@ -839,13 +851,13 @@ namespace Mode4 {
 
 			if (input.Error.Total > error)
 			{
-				input.Error.Total = error;
+				input.Error.Total = error - denoiseStep;
 
 				input.BestColor0 = mc;
 				input.BestParameter = rotation;
 				input.BestMode = 4;
 
-				if (error <= 0)
+				if (error <= denoiseStep)
 					break;
 			}
 		}
@@ -970,7 +982,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError23AG[rotation]++;
 #endif
-						eG = ComputeSubsetError23(area, mc, gWeightsAG, gFixWeightsAG, _mm_cvtsi32_si128(water - minR - minB), rotation);
+						eG = ComputeSubsetError23(area, mc, gWeightsAG, _mm_cvtsi32_si128(water - minR - minB), rotation);
 						if (eG + minR + minB >= water)
 							continue;
 					}
@@ -1002,7 +1014,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError23AR[rotation]++;
 #endif
-								ear = ComputeSubsetError23(area, mc, gWeightsAR, gFixWeightsAR, _mm_cvtsi32_si128(water - minG - minB), rotation);
+								ear = ComputeSubsetError23(area, mc, gWeightsAR, _mm_cvtsi32_si128(water - minG - minB), rotation);
 								memAR[iR] = ear;
 							}
 							if (ear + minG + minB >= water)
@@ -1026,7 +1038,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError23AGR[rotation]++;
 #endif
-							eR = ComputeSubsetError23(area, mc, gWeightsAGR, gFixWeightsAGR, _mm_cvtsi32_si128(water - minB), rotation);
+							eR = ComputeSubsetError23(area, mc, gWeightsAGR, _mm_cvtsi32_si128(water - minB), rotation);
 							if (eR + minB >= water)
 								continue;
 						}
@@ -1054,7 +1066,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 									gComputeSubsetError23AGB[rotation]++;
 #endif
-									eagb = ComputeSubsetError23(area, mc, gWeightsAGB, gFixWeightsAGB, _mm_cvtsi32_si128(water - minR), rotation);
+									eagb = ComputeSubsetError23(area, mc, gWeightsAGB, _mm_cvtsi32_si128(water - minR), rotation);
 									memAGB[iB] = eagb;
 								}
 								if (eagb + minR >= water)
@@ -1079,7 +1091,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError23[rotation]++;
 #endif
-								eB = ComputeSubsetError23(area, mc, gWeightsAGRB, gFixWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
+								eB = ComputeSubsetError23(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
 							}
 
 							if (water > eB)
@@ -1216,7 +1228,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError32AG[rotation]++;
 #endif
-						eG = ComputeSubsetError32(area, mc, gWeightsAG, gFixWeightsAG, _mm_cvtsi32_si128(water - minR - minB), rotation);
+						eG = ComputeSubsetError32(area, mc, gWeightsAG, _mm_cvtsi32_si128(water - minR - minB), rotation);
 						if (eG + minR + minB >= water)
 							continue;
 					}
@@ -1248,7 +1260,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError32AR[rotation]++;
 #endif
-								ear = ComputeSubsetError32(area, mc, gWeightsAR, gFixWeightsAR, _mm_cvtsi32_si128(water - minG - minB), rotation);
+								ear = ComputeSubsetError32(area, mc, gWeightsAR, _mm_cvtsi32_si128(water - minG - minB), rotation);
 								memAR[iR] = ear;
 							}
 							if (ear + minG + minB >= water)
@@ -1272,7 +1284,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError32AGR[rotation]++;
 #endif
-							eR = ComputeSubsetError32(area, mc, gWeightsAGR, gFixWeightsAGR, _mm_cvtsi32_si128(water - minB), rotation);
+							eR = ComputeSubsetError32(area, mc, gWeightsAGR, _mm_cvtsi32_si128(water - minB), rotation);
 							if (eR + minB >= water)
 								continue;
 						}
@@ -1300,7 +1312,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 									gComputeSubsetError32AGB[rotation]++;
 #endif
-									eagb = ComputeSubsetError32(area, mc, gWeightsAGB, gFixWeightsAGB, _mm_cvtsi32_si128(water - minR), rotation);
+									eagb = ComputeSubsetError32(area, mc, gWeightsAGB, _mm_cvtsi32_si128(water - minR), rotation);
 									memAGB[iB] = eagb;
 								}
 								if (eagb + minR >= water)
@@ -1325,7 +1337,7 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError32[rotation]++;
 #endif
-								eB = ComputeSubsetError32(area, mc, gWeightsAGRB, gFixWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
+								eB = ComputeSubsetError32(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
 							}
 
 							if (water > eB)
@@ -1430,6 +1442,8 @@ namespace Mode4 {
 
 	void CompressBlockFull(Cell& input) noexcept
 	{
+		const int denoiseStep = input.DenoiseStep;
+
 		for (int rotationIndex = 0; rotationIndex < 8; rotationIndex++)
 		{
 			const int rotation = gRotationsMode4[rotationIndex];
@@ -1439,7 +1453,7 @@ namespace Mode4 {
 
 			__m128i mc = _mm_setzero_si128();
 
-			int error = 0;
+			int error = denoiseStep;
 			if (error < input.Error.Total)
 			{
 				Area& area = input.Area1;
@@ -1449,13 +1463,13 @@ namespace Mode4 {
 
 			if (input.Error.Total > error)
 			{
-				input.Error.Total = error;
+				input.Error.Total = error - denoiseStep;
 
 				input.BestColor0 = mc;
 				input.BestParameter = rotation;
 				input.BestMode = 4;
 
-				if (error <= 0)
+				if (error <= denoiseStep)
 					break;
 			}
 		}

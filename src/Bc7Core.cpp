@@ -17,7 +17,6 @@ static std::atomic_int gCompressAlready, gCompress, gCompressBad;
 #endif
 
 static bool gDoDraft = false;
-static bool gDoFast = false;
 static bool gDoNormal = false;
 static bool gDoSlow = false;
 
@@ -29,7 +28,10 @@ static INLINED int ComputeOpaqueAlphaError(const Area& area) noexcept
 	{
 		for (size_t i = 0, n = area.Count; i < n; i++)
 		{
-			int da = *(const short*)&area.DataMask_I16[i] - 255;
+			int da = *(const short*)&area.DataMask_I16[i] ^ 255;
+
+			da >>= kDenoise;
+
 			error += da * da;
 		}
 
@@ -52,24 +54,28 @@ static INLINED void MakeCell(Cell& input, const Cell& decoded) noexcept
 
 	__m128i m0 = _mm_set1_epi16(255);
 
-	for (size_t i = 0; i < 16; i++)
+	for (size_t i = 0; i < 8; i++)
 	{
-		__m128i mc = _mm_cvtepu8_epi16(_mm_cvtsi32_si128(((int*)input.ImageRows_U8)[i]));
-		__m128i mmask = _mm_cvtepi8_epi16(_mm_cvtsi32_si128(((int*)input.MaskRows_S8)[i]));
+		__m128i mc = _mm_cvtepu8_epi16(_mm_loadl_epi64((const __m128i*)&((const uint64_t*)input.ImageRows_U8)[i]));
+		__m128i mmask = _mm_cvtepi8_epi16(_mm_loadl_epi64((const __m128i*)&((const uint64_t*)input.MaskRows_S8)[i]));
 
 		mc = _mm_and_si128(mc, mmask);
 
 		flags |= _mm_extract_epi16(mmask, 1) & flags_mask;
 		flags_mask <<= 1;
 
-		m0 = _mm_min_epi16(m0, mc);
+		flags |= _mm_extract_epi16(mmask, 5) & flags_mask;
+		flags_mask <<= 1;
 
-		input.DataMask_I16[i] = _mm_unpacklo_epi64(mc, mmask);
+		m0 = _mm_and_si128(m0, mc);
+
+		input.DataMask_I16[i + i + 0] = _mm_unpacklo_epi64(mc, mmask);
+		input.DataMask_I16[i + i + 1] = _mm_unpackhi_epi64(mc, mmask);
 	}
 
 	input.VisibleFlags = flags;
 
-	input.IsOpaque = (_mm_extract_epi16(m0, 0) == 255);
+	input.IsOpaque = ((_mm_extract_epi16(m0, 0) & _mm_extract_epi16(m0, 4)) == 255);
 
 	for (size_t partitionIndex = 0; partitionIndex < 64; partitionIndex++)
 	{
@@ -165,6 +171,29 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 			int64_t covGR = _mm_extract_epi32(msum2, 1);
 			int64_t covRB = _mm_extract_epi32(msum2, 2);
 			int64_t covBG = _mm_extract_epi32(msum2, 3);
+
+			if (covGR < 0)
+			{
+				mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(3, 2, 0, 1));
+
+				covGR = -covGR;
+				covRB = -covRB;
+			}
+
+			if (covBG < 0)
+			{
+				mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
+
+				covBG = -covBG;
+				covRB = -covRB;
+			}
+
+			if (!(covGR | covBG) && (covRB < 0))
+			{
+				mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
+
+				covRB = -covRB;
+			}
 
 			for (;;)
 			{
@@ -290,6 +319,29 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 		int64_t covRB = _mm_extract_epi32(msum2, 2);
 		int64_t covBG = _mm_extract_epi32(msum2, 3);
 
+		if (covGR < 0)
+		{
+			mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(3, 2, 0, 1));
+
+			covGR = -covGR;
+			covRB = -covRB;
+		}
+
+		if (covBG < 0)
+		{
+			mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
+
+			covBG = -covBG;
+			covRB = -covRB;
+		}
+
+		if (!(covGR | covBG) && (covRB < 0))
+		{
+			mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
+
+			covRB = -covRB;
+		}
+
 		for (;;)
 		{
 			bool changes = false;
@@ -332,6 +384,56 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 		int64_t covAG = _mm_extract_epi32(msumA, 1);
 		int64_t covAR = _mm_extract_epi32(msumA, 2);
 		int64_t covAB = _mm_extract_epi32(msumA, 3);
+
+		if (covAG < 0)
+		{
+			mbounds = _mm_shufflelo_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
+
+			covAG = -covAG;
+			covGR = -covGR;
+			covBG = -covBG;
+		}
+
+		if (covAR < 0)
+		{
+			mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(3, 2, 0, 1));
+
+			covAR = -covAR;
+			covGR = -covGR;
+			covRB = -covRB;
+		}
+
+		if (covAB < 0)
+		{
+			mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
+
+			covAB = -covAB;
+			covBG = -covBG;
+			covRB = -covRB;
+		}
+
+		if (!covAR && (covGR < 0))
+		{
+			mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(3, 2, 0, 1));
+
+			covGR = -covGR;
+			covRB = -covRB;
+		}
+
+		if (!covAB && (covBG < 0))
+		{
+			mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
+
+			covBG = -covBG;
+			covRB = -covRB;
+		}
+
+		if (!(covAR | covAB | covGR | covBG) && (covRB < 0))
+		{
+			mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
+
+			covRB = -covRB;
+		}
 
 		for (;;)
 		{
@@ -559,8 +661,10 @@ NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) no
 	return A;
 }
 
-NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, const __m128i mfix, Modulations& state, const int M) noexcept
+NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulations& state, const int M) noexcept
 {
+	const int denoiseStep = (area.IsOpaque ? kDenoiseStep * kColor : kDenoiseStep * (kColor + kAlpha));
+
 	int good = (1 << M) - 1;
 	{
 		const int m = M >> 1;
@@ -582,17 +686,17 @@ NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, cons
 
 	int errorBlock = 0;
 
-	const __m128i msign = _mm_set1_epi16(-0x8000);
-
 	for (size_t i = 0, n = area.Active; i < n; i++)
 	{
 		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 		__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
 		__m128i mmask = _mm_unpackhi_epi64(mpacked, mpacked);
 
-		int errors[16];
+		int positions[16];
+		int position = 0;
 
 		int bottom = kBlockMaximalAlphaError + kBlockMaximalColorError;
+		int bottomFull = 0;
 
 		for (int j = 0; j < M; j++)
 		{
@@ -600,26 +704,35 @@ NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, cons
 
 			mx = _mm_sub_epi16(mx, mpixel);
 
+			__m128i my = _mm_abs_epi16(mx);
+
+			my = _mm_srli_epi16(my, kDenoise);
+
 			mx = _mm_mullo_epi16(mx, mx);
+			my = _mm_mullo_epi16(my, my);
 
 			mx = _mm_and_si128(mx, mmask);
+			my = _mm_and_si128(my, mmask);
 
-			mx = _mm_xor_si128(mx, msign);
+			mx = _mm_xor_si128(mx, _mm_set1_epi16(-0x8000));
 
 			mx = _mm_madd_epi16(mx, mweights);
+			my = _mm_madd_epi16(my, mweights);
 
 			mx = _mm_add_epi32(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(2, 3, 0, 1)));
+			my = _mm_add_epi32(my, _mm_shuffle_epi32(my, _MM_SHUFFLE(2, 3, 0, 1)));
 
-			mx = _mm_add_epi32(mx, mfix);
+			int error = (int)_mm_cvtsi128_si64(my);
+			int errorFull = (int)_mm_cvtsi128_si64(mx);
 
-			int error = (int)_mm_cvtsi128_si64(mx);
-
-			errors[j] = error;
-
-			if (bottom > error)
+			if ((bottom > error) || ((bottom == error) && (bottomFull > errorFull)))
 			{
 				bottom = error;
+				bottomFull = errorFull;
+				position = j;
 			}
+
+			positions[j] = ((bottom ^ error) | (bottomFull ^ errorFull)) ? -1 : position;
 		}
 
 		errorBlock += bottom;
@@ -628,10 +741,15 @@ NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, cons
 
 		for (int j = 0; j < M; j++)
 		{
-			way |= int(errors[j] == bottom) << j;
+			way |= int(positions[j] == position) << j;
 		}
 
 		way &= good;
+
+		if ((bottom << (kDenoise + kDenoise)) <= denoiseStep)
+		{
+			way &= ~(way - 1);
+		}
 
 		way |= (1 << M);
 
@@ -665,22 +783,29 @@ NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, cons
 			good ^= int(*(const uint16_t*)&state.Values_I16[0] == *(const uint16_t*)&state.Values_I16[M - 1]) << (M - 1);
 		}
 
-		int errors[16];
+		int positions[16];
+		int position = 0;
 
 		int bottom = kBlockMaximalAlphaError + kBlockMaximalColorError;
+		int bottomFull = 0;
 
 		for (int j = 0; j < M; j++)
 		{
 			int x = *(const uint16_t*)&state.Values_I16[j];
 
-			int error = x * x;
+			int y = x >> kDenoise;
 
-			errors[j] = error;
+			int error = y * y;
+			int errorFull = x * x;
 
-			if (bottom > error)
+			if ((bottom > error) || ((bottom == error) && (bottomFull > errorFull)))
 			{
 				bottom = error;
+				bottomFull = errorFull;
+				position = j;
 			}
+
+			positions[j] = ((bottom ^ error) | (bottomFull ^ errorFull)) ? -1 : position;
 		}
 
 		errorBlock += bottom * _mm_extract_epi16(mweights, 0) * int(area.Count - area.Active);
@@ -689,10 +814,15 @@ NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, cons
 
 		for (int j = 0; j < M; j++)
 		{
-			way |= int(errors[j] == bottom) << j;
+			way |= int(positions[j] == position) << j;
 		}
 
 		way &= good;
+
+		if ((bottom << (kDenoise + kDenoise)) <= denoiseStep)
+		{
+			way &= ~(way - 1);
+		}
 
 		way |= (1 << M);
 
@@ -871,56 +1001,6 @@ static void DecompressBlock(uint8_t input[16], Cell& output) noexcept
 	}
 }
 
-static void CompressBlockFastTransparent(Cell& input) noexcept
-{
-	if (input.Error.Total > 0)
-	{
-		Mode4::CompressBlockFast(input);
-
-		if (input.Error.Total > 0)
-		{
-			Mode6::CompressBlockFast(input);
-
-			if (input.Error.Total > 0)
-			{
-				Mode5::CompressBlockFast(input);
-
-				if (input.Error.Total > 0)
-				{
-					Mode7::CompressBlockFast(input);
-				}
-			}
-		}
-	}
-}
-
-static void CompressBlockFastOpaque(Cell& input) noexcept
-{
-	// DetectGlitches
-	if (*(const short*)&input.Area1.MinMax_U16 <= (255 - 16))
-		return;
-
-	if (input.Error.Total > input.OpaqueAlphaError)
-	{
-		Mode1::CompressBlockFast(input);
-
-		if (input.Error.Total > input.OpaqueAlphaError)
-		{
-			Mode3::CompressBlockFast(input);
-
-			if (input.Error.Total > input.OpaqueAlphaError)
-			{
-				Mode2::CompressBlockFast(input);
-
-				if (input.Error.Total > input.OpaqueAlphaError)
-				{
-					Mode0::CompressBlockFast(input);
-				}
-			}
-		}
-	}
-}
-
 static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 {
 	if (!output[0])
@@ -946,26 +1026,62 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 
 		if (gDoDraft)
 		{
+			const int denoiseStep = static_cast<int>(input.Area1.Active) * ((input.Area1.IsOpaque ? kDenoiseStep * kColor : kDenoiseStep * (kColor + kAlpha)) >> (kDenoise + kDenoise));
+			input.DenoiseStep = denoiseStep;
+
 			input.OpaqueAlphaError = ComputeOpaqueAlphaError(input.Area1);
 
 			int water = input.Error.Total;
 
-			if (input.Area1.IsOpaque)
+			if (input.Error.Total > denoiseStep)
 			{
-				CompressBlockFastOpaque(input);
-				CompressBlockFastTransparent(input);
+				Mode6::CompressBlockFast(input);
+
+				if (input.Error.Total > denoiseStep)
+				{
+					Mode4::CompressBlockFast(input);
+
+					if (input.Error.Total > denoiseStep)
+					{
+						Mode5::CompressBlockFast(input);
+
+						if (input.Error.Total > denoiseStep)
+						{
+							Mode7::CompressBlockFast(input);
+						}
+					}
+				}
 			}
-			else
+
+			// DetectGlitches
+			if (*(const short*)&input.Area1.MinMax_U16 > (255 - 16))
 			{
-				CompressBlockFastTransparent(input);
-				CompressBlockFastOpaque(input);
+				if (input.Error.Total > input.OpaqueAlphaError + denoiseStep)
+				{
+					Mode3::CompressBlockFast(input);
+
+					if (input.Error.Total > input.OpaqueAlphaError + denoiseStep)
+					{
+						Mode1::CompressBlockFast(input);
+
+						if (input.Error.Total > input.OpaqueAlphaError + denoiseStep)
+						{
+							Mode2::CompressBlockFast(input);
+
+							if (input.Error.Total > input.OpaqueAlphaError + denoiseStep)
+							{
+								Mode0::CompressBlockFast(input);
+							}
+						}
+					}
+				}
 			}
 
 #if defined(OPTION_COUNTERS)
 			gCompress++;
 #endif
 
-			if (gDoFast)
+			if (gDoNormal)
 			{
 				switch (input.BestMode)
 				{
@@ -1031,23 +1147,43 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 
 				if (input.Area1.IsOpaque)
 				{
-					if (input.Error.Total > input.OpaqueAlphaError)
+					if (input.Error.Total > input.OpaqueAlphaError + denoiseStep)
 					{
 						Mode2::CompressBlockFull(input);
 
-						if (input.Error.Total > input.OpaqueAlphaError)
+						if (input.Error.Total > input.OpaqueAlphaError + denoiseStep)
 						{
 							Mode0::CompressBlockFull(input);
 
 							if (gDoSlow)
 							{
-								if (input.Error.Total > input.OpaqueAlphaError)
+								if (input.Error.Total > input.OpaqueAlphaError + denoiseStep)
 								{
 									Mode1::CompressBlockFull(input);
 
-									if (input.Error.Total > input.OpaqueAlphaError)
+									if (input.Error.Total > input.OpaqueAlphaError + denoiseStep)
 									{
 										Mode3::CompressBlockFull(input);
+
+										if (input.Error.Total > denoiseStep)
+										{
+											Mode5::CompressBlockFull(input);
+
+											if (input.Error.Total > denoiseStep)
+											{
+												Mode4::CompressBlockFull(input);
+
+												if (input.Error.Total > denoiseStep)
+												{
+													Mode7::CompressBlockFull(input);
+
+													if (input.Error.Total > denoiseStep)
+													{
+														Mode6::CompressBlockFull(input);
+													}
+												}
+											}
+										}
 									}
 								}
 							}
@@ -1056,26 +1192,23 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 				}
 				else
 				{
-					if (input.Error.Total > 0)
+					if (input.Error.Total > denoiseStep)
 					{
 						Mode5::CompressBlockFull(input);
 
-						if (input.Error.Total > 0)
+						if (input.Error.Total > denoiseStep)
 						{
 							Mode4::CompressBlockFull(input);
 
-							if (gDoNormal)
+							if (input.Error.Total > denoiseStep)
 							{
-								if (input.Error.Total > 0)
-								{
-									Mode7::CompressBlockFull(input);
+								Mode7::CompressBlockFull(input);
 
-									if (gDoSlow)
+								if (gDoSlow)
+								{
+									if (input.Error.Total > denoiseStep)
 									{
-										if (input.Error.Total > 0)
-										{
-											Mode6::CompressBlockFull(input);
-										}
+										Mode6::CompressBlockFull(input);
 									}
 								}
 							}
@@ -1209,10 +1342,9 @@ static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
 	return _mm_shuffle_epi8(mc, mrot);
 }
 
-static void InitTables(bool doDraft, bool doFast, bool doNormal, bool doSlow)
+static void InitTables(bool doDraft, bool doNormal, bool doSlow)
 {
 	gDoDraft = doDraft;
-	gDoFast = doFast;
 	gDoNormal = doNormal;
 	gDoSlow = doSlow;
 
@@ -1311,8 +1443,8 @@ static void CompressKernel(const WorkerItem* begin, const WorkerItem* end, int s
 
 		CompressBlock(it->_Output, input);
 
-		pErrorAlpha += input.Error.Alpha;
-		pErrorColor += input.Error.Total - input.Error.Alpha;
+		pErrorAlpha += input.Error.Alpha << (kDenoise + kDenoise);
+		pErrorColor += (input.Error.Total - input.Error.Alpha) << (kDenoise + kDenoise);
 
 		pssim.Alpha += input.Quality.Alpha;
 		pssim.Color += input.Quality.Color;

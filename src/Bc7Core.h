@@ -2,8 +2,8 @@
 
 #include "pch.h"
 
-constexpr int kBlockMaximalAlphaError = 16 * (255 * 255) * kAlpha + 1;
-constexpr int kBlockMaximalColorError = 16 * (255 * 255) * kColor + 1;
+constexpr int kBlockMaximalAlphaError = 16 * (255 >> kDenoise) * (255 >> kDenoise) * kAlpha + 1;
+constexpr int kBlockMaximalColorError = 16 * (255 >> kDenoise) * (255 >> kDenoise) * kColor + 1;
 
 struct BlockError
 {
@@ -67,6 +67,8 @@ struct alignas(64) Cell
 	uint32_t PersonalMode;
 
 	int VisibleFlags;
+
+	int DenoiseStep;
 
 	bool IsOpaque;
 
@@ -144,7 +146,7 @@ void AreaReduceTable4(__m128i& mc, uint64_t& indices) noexcept;
 NOTINLINED Node* radix_sort(Node* input, Node* work, size_t N) noexcept;
 NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) noexcept;
 
-NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, const __m128i mfix, Modulations& state, const int M) noexcept;
+NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulations& state, const int M) noexcept;
 
 namespace Mode0 {
 
@@ -298,7 +300,7 @@ struct WorkerItem
 	}
 };
 
-using PInitTables = void(*)(bool doDraft, bool doFast, bool doNormal, bool doSlow);
+using PInitTables = void(*)(bool doDraft, bool doNormal, bool doSlow);
 
 using PBlockKernel = void(*)(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept;
 

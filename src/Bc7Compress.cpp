@@ -234,7 +234,6 @@ static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
 int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& args)
 {
 	bool doDraft = true;
-	bool doFast = true;
 	bool doNormal = true;
 	bool doSlow = false;
 
@@ -257,7 +256,6 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 			if (strcmp(arg, "/compare") == 0)
 			{
 				doDraft = false;
-				doFast = false;
 				doNormal = false;
 				doSlow = false;
 				continue;
@@ -265,15 +263,6 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 			else if (strcmp(arg, "/draft") == 0)
 			{
 				doDraft = true;
-				doFast = false;
-				doNormal = false;
-				doSlow = false;
-				continue;
-			}
-			else if (strcmp(arg, "/fast") == 0)
-			{
-				doDraft = true;
-				doFast = true;
 				doNormal = false;
 				doSlow = false;
 				continue;
@@ -281,7 +270,6 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 			else if (strcmp(arg, "/normal") == 0)
 			{
 				doDraft = true;
-				doFast = true;
 				doNormal = true;
 				doSlow = false;
 				continue;
@@ -289,7 +277,6 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 			else if (strcmp(arg, "/slow") == 0)
 			{
 				doDraft = true;
-				doFast = true;
 				doNormal = true;
 				doSlow = true;
 				continue;
@@ -439,7 +426,7 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 	head[22] = flip ? 0x00753Du : 0x00643Du;
 	head[23] = static_cast<uint32_t>(Size); // imageSize
 
-	bc7Core.pInitTables(doDraft, doFast, doNormal, doSlow);
+	bc7Core.pInitTables(doDraft, doNormal, doSlow);
 
 	memcpy(dst_texture_bgra, src_texture_bgra, src_texture_h * src_texture_stride);
 
@@ -470,25 +457,25 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 
 		if (mse_alpha > 0)
 		{
-			PRINTF("      SubTexture A MSE = %.1f, PSNR = %f, SSIM_4x4 = %.8f",
+			PRINTF("      SubTexture A qMSE = %.1f, qPSNR = %f, SSIM_4x4 = %.8f",
 				(1.0 / kAlpha) * mse_alpha / pixels,
 				10.0 * log((255.0 * 255.0) * kAlpha * pixels / mse_alpha) / log(10.0),
 				ssim.Alpha * 16.0 / pixels);
 		}
 		else
 		{
-			PRINTF("      Exactly A");
+			PRINTF("      Whole A");
 		}
 
 		if (mse_color > 0)
 		{
 #if defined(OPTION_LINEAR)
-			PRINTF("      SubTexture RGB MSE = %.1f, PSNR = %f, SSIM_4x4 = %.8f",
+			PRINTF("      SubTexture RGB qMSE = %.1f, qPSNR = %f, SSIM_4x4 = %.8f",
 				(1.0 / kColor) * mse_color / pixels,
 				10.0 * log((255.0 * 255.0) * kColor * pixels / mse_color) / log(10.0),
 				ssim.Color * 16.0 / pixels);
 #else
-			PRINTF("      SubTexture RGB wMSE = %.1f, wPSNR = %f, wSSIM_4x4 = %.8f",
+			PRINTF("      SubTexture RGB qMSE = %.1f, qPSNR = %f, wSSIM_4x4 = %.8f",
 				(1.0 / kColor) * mse_color / pixels,
 				10.0 * log((255.0 * 255.0) * kColor * pixels / mse_color) / log(10.0),
 				ssim.Color * 16.0 / pixels);
@@ -496,7 +483,7 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 		}
 		else
 		{
-			PRINTF("      Exactly RGB");
+			PRINTF("      Whole RGB");
 		}
 
 		SaveBc7(dst_name, (const uint8_t*)head, sizeof(head), dst_bc7, Size);
@@ -549,7 +536,7 @@ int __cdecl main(int argc, char* argv[])
 
 	if (argc < 2)
 	{
-		PRINTF("Usage: Bc7Compress [/fast | /normal | /slow | /draft] [/retina] [/nomask] [/noflip] src");
+		PRINTF("Usage: Bc7Compress [/draft | /normal | /slow] [/retina] [/nomask] [/noflip] src");
 		PRINTF("                   [dst.ktx] [/debug result.png] [/map partitions.png] [/bad bad.png]");
 		return 1;
 	}

@@ -9,14 +9,11 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 	__m128i merrorBlock = _mm_setzero_si128();
 
 	const __m128i mweights = gWeightsGRB;
-	const __m128i mfix = gFixWeightsGRB;
 
 #if defined(OPTION_AVX2)
 	const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
-	const __m256i vsign = _mm256_set1_epi16(-0x8000);
-	const __m128i mfix4 = _mm_slli_epi32(mfix, 2);
 
 	mc = _mm_packus_epi16(mc, mc);
 	__m256i vc = _mm256_broadcastq_epi64(mc);
@@ -42,22 +39,25 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 		__m256i vpixel0 = _mm256_unpacklo_epi64(vpacked0, vpacked0);
 		__m256i vpixel1 = _mm256_unpacklo_epi64(vpacked1, vpacked1);
 
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix4);
-
 		__m256i vx = _mm256_sub_epi16(vpixel0, vtx);
 		__m256i vy = _mm256_sub_epi16(vpixel0, vty);
 		__m256i vz = _mm256_sub_epi16(vpixel1, vtx);
 		__m256i vw = _mm256_sub_epi16(vpixel1, vty);
 
+		vx = _mm256_abs_epi16(vx);
+		vy = _mm256_abs_epi16(vy);
+		vz = _mm256_abs_epi16(vz);
+		vw = _mm256_abs_epi16(vw);
+
+		vx = _mm256_srli_epi16(vx, kDenoise);
+		vy = _mm256_srli_epi16(vy, kDenoise);
+		vz = _mm256_srli_epi16(vz, kDenoise);
+		vw = _mm256_srli_epi16(vw, kDenoise);
+
 		vx = _mm256_mullo_epi16(vx, vx);
 		vy = _mm256_mullo_epi16(vy, vy);
 		vz = _mm256_mullo_epi16(vz, vz);
 		vw = _mm256_mullo_epi16(vw, vw);
-
-		vx = _mm256_xor_si256(vx, vsign);
-		vy = _mm256_xor_si256(vy, vsign);
-		vz = _mm256_xor_si256(vz, vsign);
-		vw = _mm256_xor_si256(vw, vsign);
 
 		vx = _mm256_madd_epi16(vx, vweights);
 		vy = _mm256_madd_epi16(vy, vweights);
@@ -90,17 +90,17 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 		__m256i vpacked = _mm256_load_si256(p);
 		__m256i vpixel = _mm256_unpacklo_epi64(vpacked, vpacked);
 
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 		__m256i vx = _mm256_sub_epi16(vpixel, vtx);
 		__m256i vy = _mm256_sub_epi16(vpixel, vty);
 
+		vx = _mm256_abs_epi16(vx);
+		vy = _mm256_abs_epi16(vy);
+
+		vx = _mm256_srli_epi16(vx, kDenoise);
+		vy = _mm256_srli_epi16(vy, kDenoise);
+
 		vx = _mm256_mullo_epi16(vx, vx);
 		vy = _mm256_mullo_epi16(vy, vy);
-
-		vx = _mm256_xor_si256(vx, vsign);
-		vy = _mm256_xor_si256(vy, vsign);
 
 		vx = _mm256_madd_epi16(vx, vweights);
 		vy = _mm256_madd_epi16(vy, vweights);
@@ -122,13 +122,13 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 		__m128i mpacked = _mm_load_si128((const __m128i*)p);
 		__m256i vpixel = _mm256_broadcastq_epi64(mpacked);
 
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 		__m256i vx = _mm256_sub_epi16(vpixel, vt);
 
-		vx = _mm256_mullo_epi16(vx, vx);
+		vx = _mm256_abs_epi16(vx);
 
-		vx = _mm256_xor_si256(vx, vsign);
+		vx = _mm256_srli_epi16(vx, kDenoise);
+
+		vx = _mm256_mullo_epi16(vx, vx);
 
 		vx = _mm256_madd_epi16(vx, vweights);
 
@@ -140,7 +140,6 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 	}
 #else
 	const __m128i mhalf = _mm_set1_epi16(32);
-	const __m128i msign = _mm_set1_epi16(-0x8000);
 
 	mc = _mm_packus_epi16(mc, mc);
 
@@ -161,16 +160,17 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 		__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
 
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 		__m128i mx = _mm_sub_epi16(mpixel, mtx);
 		__m128i my = _mm_sub_epi16(mpixel, mty);
 
+		mx = _mm_abs_epi16(mx);
+		my = _mm_abs_epi16(my);
+
+		mx = _mm_srli_epi16(mx, kDenoise);
+		my = _mm_srli_epi16(my, kDenoise);
+
 		mx = _mm_mullo_epi16(mx, mx);
 		my = _mm_mullo_epi16(my, my);
-
-		mx = _mm_xor_si128(mx, msign);
-		my = _mm_xor_si128(my, msign);
 
 		mx = _mm_madd_epi16(mx, mweights);
 		my = _mm_madd_epi16(my, mweights);
@@ -192,7 +192,7 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 }
 
 template<int shuffle>
-static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, const __m128i mweights, const __m128i mfix, const __m128i mwater) noexcept
+static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, const __m128i mweights, const __m128i mwater) noexcept
 {
 	__m128i merrorBlock = _mm_setzero_si128();
 
@@ -200,8 +200,6 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 	const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
-	const __m256i vsign = _mm256_set1_epi16(-0x8000);
-	const __m128i mfix4 = _mm_slli_epi32(mfix, 2);
 
 	mc = _mm_shuffle_epi32(mc, shuffle);
 	mc = _mm_packus_epi16(mc, mc);
@@ -227,16 +225,17 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 		vpixel0 = _mm256_unpacklo_epi64(vpixel0, vpixel0);
 		vpixel1 = _mm256_unpacklo_epi64(vpixel1, vpixel1);
 
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix4);
-
 		__m256i vx = _mm256_sub_epi16(vpixel0, vt);
 		__m256i vy = _mm256_sub_epi16(vpixel1, vt);
 
+		vx = _mm256_abs_epi16(vx);
+		vy = _mm256_abs_epi16(vy);
+
+		vx = _mm256_srli_epi16(vx, kDenoise);
+		vy = _mm256_srli_epi16(vy, kDenoise);
+
 		vx = _mm256_mullo_epi16(vx, vx);
 		vy = _mm256_mullo_epi16(vy, vy);
-
-		vx = _mm256_xor_si256(vx, vsign);
-		vy = _mm256_xor_si256(vy, vsign);
 
 		vx = _mm256_madd_epi16(vx, vweights);
 		vy = _mm256_madd_epi16(vy, vweights);
@@ -263,14 +262,13 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 		__m256i vpixel = _mm256_shufflelo_epi16(vpacked, shuffle);
 		vpixel = _mm256_unpacklo_epi64(vpixel, vpixel);
 
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 		__m256i vx = _mm256_sub_epi16(vpixel, vt);
 
-		vx = _mm256_mullo_epi16(vx, vx);
+		vx = _mm256_abs_epi16(vx);
 
-		vx = _mm256_xor_si256(vx, vsign);
+		vx = _mm256_srli_epi16(vx, kDenoise);
+
+		vx = _mm256_mullo_epi16(vx, vx);
 
 		vx = _mm256_madd_epi16(vx, vweights);
 
@@ -289,13 +287,13 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 		__m128i mpixel = _mm_shufflelo_epi16(mpacked, shuffle);
 		mpixel = _mm_unpacklo_epi64(mpixel, mpixel);
 
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 		__m128i mx = _mm_sub_epi16(mpixel, _mm256_castsi256_si128(vt));
 
-		mx = _mm_mullo_epi16(mx, mx);
+		mx = _mm_abs_epi16(mx);
 
-		mx = _mm_xor_si128(mx, _mm256_castsi256_si128(vsign));
+		mx = _mm_srli_epi16(mx, kDenoise);
+
+		mx = _mm_mullo_epi16(mx, mx);
 
 		mx = _mm_madd_epi16(mx, _mm256_castsi256_si128(vweights));
 
@@ -306,7 +304,6 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 	}
 #else
 	const __m128i mhalf = _mm_set1_epi16(32);
-	const __m128i msign = _mm_set1_epi16(-0x8000);
 
 	mc = _mm_shuffle_epi32(mc, shuffle);
 	mc = _mm_packus_epi16(mc, mc);
@@ -325,13 +322,13 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 		__m128i mpixel = _mm_shufflelo_epi16(mpacked, shuffle);
 		mpixel = _mm_unpacklo_epi64(mpixel, mpixel);
 
-		merrorBlock = _mm_add_epi32(merrorBlock, mfix);
-
 		__m128i mx = _mm_sub_epi16(mpixel, mt);
 
-		mx = _mm_mullo_epi16(mx, mx);
+		mx = _mm_abs_epi16(mx);
 
-		mx = _mm_xor_si128(mx, msign);
+		mx = _mm_srli_epi16(mx, kDenoise);
+
+		mx = _mm_mullo_epi16(mx, mx);
 
 		mx = _mm_madd_epi16(mx, mweights);
 
@@ -374,7 +371,7 @@ static INLINED int ComputeOpaqueSubsetTable2(const Area& area, __m128i mc, uint6
 	_mm_store_si128((__m128i*)&state.Values_I16[0], mtx);
 	_mm_store_si128((__m128i*)&state.Values_I16[2], mty);
 
-	int error = ComputeSubsetTable(area, gWeightsAGRB, gFixWeightsAGRB, state, 4);
+	int error = ComputeSubsetTable(area, gWeightsAGRB, state, 4);
 
 	for (size_t i = 0, n = area.Count; i < n; i++)
 	{
