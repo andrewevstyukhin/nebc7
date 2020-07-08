@@ -10,8 +10,7 @@
 #include <stdexcept>
 #include <thread>
 #include <atomic>
-
-static constexpr int WorkerThreadStackSize = 2 * 1024 * 1024;
+#include <functional>
 
 #if !defined(OPTION_LIBRARY)
 
@@ -168,14 +167,8 @@ protected:
 		return job;
 	}
 
-#if defined(WIN32)
-	static DWORD WINAPI ThreadProc(LPVOID lpParameter)
-#else
-	static int ThreadProc(Worker* lpParameter)
-#endif
+	static void ThreadProc(Worker* worker)
 	{
-		Worker* worker = static_cast<Worker*>(lpParameter);
-
 		int64_t errorAlpha = 0;
 		int64_t errorColor = 0;
 		BlockSSIM ssim = BlockSSIM(0, 0);
@@ -205,8 +198,6 @@ protected:
 			SetEvent(worker->_Done);
 		}
 #endif
-
-		return 0;
 	}
 
 public:
@@ -224,18 +215,8 @@ public:
 
 		for (int i = 0; i < n; i++)
 		{
-#if defined(WIN32)
-			HANDLE hthread = CreateThread(NULL, WorkerThreadStackSize, ThreadProc, this, 0, NULL);
-			if (hthread == nullptr)
-				throw std::runtime_error("fork");
-			CloseHandle(hthread);
-#else
-			//std::thread thread(std::bind(ThreadProc, this));
-			boost::thread::attributes attrs;
-			attrs.set_stack_size(WorkerThreadStackSize);
-			boost::thread thread(attrs, boost::bind(ThreadProc, this));
+			std::thread thread(std::bind(ThreadProc, this));
 			thread.detach();
-#endif
 		}
 
 #if defined(WIN32)

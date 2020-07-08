@@ -492,7 +492,7 @@ alignas(64) uint8_t gTableDeltas3_Value5[0x100][0x20 * 0x20];
 alignas(64) uint16_t gTableCuts3_Value7Shared[0x100][0x80];
 alignas(64) uint16_t gTableCuts3_Value5[0x100][0x20];
 
-alignas(64) uint8_t gTableDeltas4_Value8[0x100][0x100 * 0x100];
+alignas(64) uint8_t gTableDeltas4Half_Value8[0x100][0x100 * 0x80];
 
 template<int bits>
 static INLINED void ReduceLevels(const uint8_t table[0x100][0x100 * 0x100], uint8_t* p)
@@ -584,55 +584,9 @@ void InitLevels() noexcept
 {
 	const __m128i mhalf = _mm_set1_epi16(32);
 
-	// 2-bit index
-	{
-		__m128i mratio = _mm_setzero_si128();
-		{
-			__m128i m0 = gTableInterpolate2_U8[0];
-			__m128i m1 = gTableInterpolate2_U8[1];
-
-			mratio = _mm_blend_epi16(mratio, m0, 0x11 + 0x44);
-			mratio = _mm_blend_epi16(mratio, m1, 0x22 + 0x88);
-		}
-
-		for (int x = 0; x < 0x100; x++)
-		{
-			__m128i mx = _mm_shuffle_epi32(_mm_shufflelo_epi16(_mm_cvtsi32_si128(x), 0), 0);
-
-			for (int cH = 0; cH < 0x100; cH++)
-			{
-				for (int cL = 0; cL < 0x100; cL++)
-				{
-					int c = (cH << 8) + cL;
-
-					__m128i mc = _mm_shuffle_epi32(_mm_shufflelo_epi16(_mm_cvtsi32_si128(c), 0), 0);
-
-					__m128i mv = _mm_maddubs_epi16(mc, mratio);
-					mv = _mm_add_epi16(mv, mhalf);
-					mv = _mm_srli_epi16(mv, 6);
-
-					mv = _mm_sub_epi16(mv, mx);
-					mv = _mm_abs_epi16(mv);
-
-					mv = _mm_srli_epi16(mv, kDenoise);
-
-					gTableDeltas2_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
-				}
-			}
-		}
-
-		ReduceLevels<7>(gTableDeltas2_Value8, &gTableDeltas2_Value7[0][0]);
-		ReduceLevels<6>(gTableDeltas2_Value8, &gTableDeltas2_Value6[0][0]);
-		ReduceLevels<5>(gTableDeltas2_Value8, &gTableDeltas2_Value5[0][0]);
-
-		CutLevels<8>(gTableDeltas2_Value8, gTableCuts2_Value8);
-		CutLevels<6>(gTableDeltas2_Value6, gTableCuts2_Value6);
-		CutLevels<5>(gTableDeltas2_Value5, gTableCuts2_Value5);
-	}
-
 	// 3-bit index
 	{
-		const auto gTableDeltas3_Value8 = gTableDeltas4_Value8;
+		const auto gTableDeltas3_Value8 = gTableDeltas2_Value8;
 
 		__m128i mratio = _mm_setzero_si128();
 		{
@@ -679,6 +633,52 @@ void InitLevels() noexcept
 
 		CutLevels<7>(gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared);
 		CutLevels<5>(gTableDeltas3_Value5, gTableCuts3_Value5);
+	}
+
+	// 2-bit index
+	{
+		__m128i mratio = _mm_setzero_si128();
+		{
+			__m128i m0 = gTableInterpolate2_U8[0];
+			__m128i m1 = gTableInterpolate2_U8[1];
+
+			mratio = _mm_blend_epi16(mratio, m0, 0x11 + 0x44);
+			mratio = _mm_blend_epi16(mratio, m1, 0x22 + 0x88);
+		}
+
+		for (int x = 0; x < 0x100; x++)
+		{
+			__m128i mx = _mm_shuffle_epi32(_mm_shufflelo_epi16(_mm_cvtsi32_si128(x), 0), 0);
+
+			for (int cH = 0; cH < 0x100; cH++)
+			{
+				for (int cL = 0; cL < 0x100; cL++)
+				{
+					int c = (cH << 8) + cL;
+
+					__m128i mc = _mm_shuffle_epi32(_mm_shufflelo_epi16(_mm_cvtsi32_si128(c), 0), 0);
+
+					__m128i mv = _mm_maddubs_epi16(mc, mratio);
+					mv = _mm_add_epi16(mv, mhalf);
+					mv = _mm_srli_epi16(mv, 6);
+
+					mv = _mm_sub_epi16(mv, mx);
+					mv = _mm_abs_epi16(mv);
+
+					mv = _mm_srli_epi16(mv, kDenoise);
+
+					gTableDeltas2_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
+				}
+			}
+		}
+
+		ReduceLevels<7>(gTableDeltas2_Value8, &gTableDeltas2_Value7[0][0]);
+		ReduceLevels<6>(gTableDeltas2_Value8, &gTableDeltas2_Value6[0][0]);
+		ReduceLevels<5>(gTableDeltas2_Value8, &gTableDeltas2_Value5[0][0]);
+
+		CutLevels<8>(gTableDeltas2_Value8, gTableCuts2_Value8);
+		CutLevels<6>(gTableDeltas2_Value6, gTableCuts2_Value6);
+		CutLevels<5>(gTableDeltas2_Value5, gTableCuts2_Value5);
 	}
 
 	// 4-bit index
@@ -733,11 +733,13 @@ void InitLevels() noexcept
 					mv0 = _mm_abs_epi16(mv0);
 					mv1 = _mm_abs_epi16(mv1);
 
-					__m128i mv = _mm_min_epu16(mv0, mv1);
+					__m128i mv = _mm_min_epi16(mv0, mv1);
 
 					mv = _mm_srli_epi16(mv, kDenoise);
 
-					gTableDeltas4_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
+					mv = _mm_min_epi16(mv, _mm_set1_epi16(0xF));
+
+					gTableDeltas4Half_Value8[x][c >> 1] |= static_cast<uint8_t>(_mm_extract_epi16(_mm_minpos_epu16(mv), 0) << ((c & 1) << 2));
 				}
 			}
 		}

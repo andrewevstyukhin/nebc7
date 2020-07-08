@@ -59,6 +59,9 @@
     <ClInclude Include="SnippetTargetSSSE3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SnippetLevelsBufferHalf.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">

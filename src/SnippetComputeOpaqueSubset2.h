@@ -82,7 +82,7 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 		p += 2;
 
 		if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-			break;
+			goto done;
 	}
 
 	if (k & 2)
@@ -138,6 +138,7 @@ static INLINED int ComputeOpaqueSubsetError2(const Area& area, __m128i mc, const
 
 		merrorBlock = _mm_add_epi32(merrorBlock, _mm_min_epi32(_mm256_extracti128_si256(vx, 1), _mm256_castsi256_si128(vx)));
 	}
+done:
 #else
 	const __m128i mhalf = _mm_set1_epi16(32);
 
@@ -253,7 +254,7 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 		p += 2;
 
 		if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-			break;
+			goto done;
 	}
 
 	if (k & 2)
@@ -302,6 +303,7 @@ static INLINED int ComputeOpaqueSubsetError2Pair(const Area& area, __m128i mc, c
 
 		merrorBlock = _mm_add_epi32(merrorBlock, mx);
 	}
+done:
 #else
 	const __m128i mhalf = _mm_set1_epi16(32);
 

@@ -5,7 +5,7 @@
 #include "Bc7Pca.h"
 
 #include "SnippetInsertRemoveZeroBit.h"
-#include "SnippetLevelsBuffer.h"
+#include "SnippetLevelsBufferHalf.h"
 
 // https://docs.microsoft.com/en-us/windows/desktop/direct3d11/bc7-format-mode-reference#mode-6
 
@@ -109,7 +109,7 @@ namespace Mode6 {
 		if (error)
 		{
 			error *= kAlpha;
-			int v = gTableDeltas4_Value8[0][alpha];
+			int v = (gTableDeltas4Half_Value8[0][alpha >> 1] >> ((alpha & 1) << 2)) & 0xF;
 			error *= v * v;
 		}
 
@@ -120,7 +120,114 @@ namespace Mode6 {
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
-#if defined(OPTION_AVX2)
+#if defined(OPTION_AVX512)
+		const __m512i wweights = _mm512_broadcastq_epi64(mweights);
+
+		const __m512i whalf = _mm512_set1_epi16(32);
+
+		mc = _mm_packus_epi16(mc, mc);
+		__m512i wc = _mm512_broadcastq_epi64(mc);
+
+		__m512i wt0 = *(const __m512i*)&gTableInterpolate4_U8[0];
+		__m512i wt1 = *(const __m512i*)&gTableInterpolate4_U8[4];
+
+		wt0 = _mm512_maddubs_epi16(wc, wt0);
+		wt1 = _mm512_maddubs_epi16(wc, wt1);
+
+		wt0 = _mm512_add_epi16(wt0, whalf);
+		wt1 = _mm512_add_epi16(wt1, whalf);
+
+		wt0 = _mm512_srli_epi16(wt0, 6);
+		wt1 = _mm512_srli_epi16(wt1, 6);
+
+		__m512i wtx = _mm512_permutex_epi64(wt0, 0x44);
+		__m512i wty = _mm512_permutex_epi64(wt0, 0xEE);
+		__m512i wtz = _mm512_permutex_epi64(wt1, 0x44);
+		__m512i wtw = _mm512_permutex_epi64(wt1, 0xEE);
+
+		int k = static_cast<int>(area.Active);
+		const __m256i* p = (const __m256i*)area.DataMask_I16;
+
+		while ((k -= 2) >= 0)
+		{
+			__m256i vpacked = _mm256_load_si256(p);
+			__m256i vpixel = _mm256_unpacklo_epi64(vpacked, vpacked);
+			__m512i wpixel = _mm512_broadcast_i64x4(vpixel);
+
+			__m512i wx = _mm512_sub_epi16(wpixel, wtx);
+			__m512i wy = _mm512_sub_epi16(wpixel, wty);
+			__m512i wz = _mm512_sub_epi16(wpixel, wtz);
+			__m512i ww = _mm512_sub_epi16(wpixel, wtw);
+
+			wx = _mm512_abs_epi16(wx);
+			wy = _mm512_abs_epi16(wy);
+			wz = _mm512_abs_epi16(wz);
+			ww = _mm512_abs_epi16(ww);
+
+			wx = _mm512_srli_epi16(wx, kDenoise);
+			wy = _mm512_srli_epi16(wy, kDenoise);
+			wz = _mm512_srli_epi16(wz, kDenoise);
+			ww = _mm512_srli_epi16(ww, kDenoise);
+
+			wx = _mm512_mullo_epi16(wx, wx);
+			wy = _mm512_mullo_epi16(wy, wy);
+			wz = _mm512_mullo_epi16(wz, wz);
+			ww = _mm512_mullo_epi16(ww, ww);
+
+			wx = _mm512_madd_epi16(wx, wweights);
+			wy = _mm512_madd_epi16(wy, wweights);
+			wz = _mm512_madd_epi16(wz, wweights);
+			ww = _mm512_madd_epi16(ww, wweights);
+
+			wx = _mm512_add_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(2, 3, 0, 1)));
+			wy = _mm512_add_epi32(wy, _mm512_shuffle_epi32(wy, _MM_SHUFFLE(2, 3, 0, 1)));
+			wz = _mm512_add_epi32(wz, _mm512_shuffle_epi32(wz, _MM_SHUFFLE(2, 3, 0, 1)));
+			ww = _mm512_add_epi32(ww, _mm512_shuffle_epi32(ww, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			wx = _mm512_min_epi32(_mm512_min_epi32(wx, wy), _mm512_min_epi32(wz, ww));
+			__m256i vx = _mm256_min_epi32(_mm512_extracti64x4_epi64(wx, 1), _mm512_castsi512_si256(wx));
+			vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
+
+			p++;
+
+			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+				goto done;
+		}
+
+		if (k & 1)
+		{
+			__m128i mpacked = _mm_load_si128((const __m128i*)p);
+			__m512i wpixel = _mm512_broadcastq_epi64(mpacked);
+
+			__m512i wx = _mm512_sub_epi16(wpixel, wt0);
+			__m512i wy = _mm512_sub_epi16(wpixel, wt1);
+
+			wx = _mm512_abs_epi16(wx);
+			wy = _mm512_abs_epi16(wy);
+
+			wx = _mm512_srli_epi16(wx, kDenoise);
+			wy = _mm512_srli_epi16(wy, kDenoise);
+
+			wx = _mm512_mullo_epi16(wx, wx);
+			wy = _mm512_mullo_epi16(wy, wy);
+
+			wx = _mm512_madd_epi16(wx, wweights);
+			wy = _mm512_madd_epi16(wy, wweights);
+
+			wx = _mm512_add_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(2, 3, 0, 1)));
+			wy = _mm512_add_epi32(wy, _mm512_shuffle_epi32(wy, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			wx = _mm512_min_epi32(wx, wy);
+			__m256i vx = _mm256_min_epi32(_mm512_extracti64x4_epi64(wx, 1), _mm512_castsi512_si256(wx));
+			vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm_min_epi32(_mm256_extracti128_si256(vx, 1), _mm256_castsi256_si128(vx)));
+		}
+	done:
+#elif defined(OPTION_AVX2)
 		const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
 		const __m256i vhalf = _mm256_set1_epi16(32);
@@ -392,7 +499,7 @@ namespace Mode6 {
 			p++;
 
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-				break;
+				goto done;
 		}
 
 		if (k & 1)
@@ -422,6 +529,7 @@ namespace Mode6 {
 
 			merrorBlock = _mm_add_epi32(merrorBlock, _mm_min_epi32(_mm256_extracti128_si256(vx, 1), _mm256_castsi256_si128(vx)));
 		}
+	done:
 #else
 		const __m128i mhalf = _mm_set1_epi16(32);
 
@@ -630,7 +738,7 @@ namespace Mode6 {
 	class Subset final
 	{
 	public:
-		LevelsBuffer<LevelsCapacity> ch0, ch1, ch2, ch3;
+		LevelsBufferHalf<LevelsCapacity> ch0, ch1, ch2, ch3;
 
 		ALWAYS_INLINED Subset() noexcept = default;
 
@@ -643,23 +751,23 @@ namespace Mode6 {
 			}
 			else
 			{
-				ch0.ComputeChannelLevelsReduced<7, pbits, false, gTableDeltas4_Value8>(area, 0, kAlpha, water);
+				ch0.ComputeChannelLevelsReduced<7, pbits, false, gTableDeltas4Half_Value8>(area, 0, kAlpha, water);
 			}
 			int min0 = ch0.MinErr;
 			if (min0 >= water)
 				return false;
 
-			ch1.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas4_Value8>(area, 1, kGreen, water - min0);
+			ch1.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas4Half_Value8>(area, 1, kGreen, water - min0);
 			int min1 = ch1.MinErr;
 			if (min0 + min1 >= water)
 				return false;
 
-			ch2.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas4_Value8>(area, 2, kRed, water - min0 - min1);
+			ch2.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas4Half_Value8>(area, 2, kRed, water - min0 - min1);
 			int min2 = ch2.MinErr;
 			if (min0 + min1 + min2 >= water)
 				return false;
 
-			ch3.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas4_Value8>(area, 3, kBlue, water - min0 - min1 - min2);
+			ch3.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas4Half_Value8>(area, 3, kBlue, water - min0 - min1 - min2);
 			int min3 = ch3.MinErr;
 			if (min0 + min1 + min2 + min3 >= water)
 				return false;

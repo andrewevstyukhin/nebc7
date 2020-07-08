@@ -213,7 +213,7 @@ namespace Mode7 {
 			p += 2;
 
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-				break;
+				goto done;
 		}
 
 		if (k & 2)
@@ -269,6 +269,7 @@ namespace Mode7 {
 
 			merrorBlock = _mm_add_epi32(merrorBlock, _mm_min_epi32(_mm256_extracti128_si256(vx, 1), _mm256_castsi256_si128(vx)));
 		}
+	done:
 #else
 		const __m128i mhalf = _mm_set1_epi16(32);
 
@@ -384,7 +385,7 @@ namespace Mode7 {
 			p += 2;
 
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-				break;
+				goto done;
 		}
 
 		if (k & 2)
@@ -433,6 +434,7 @@ namespace Mode7 {
 
 			merrorBlock = _mm_add_epi32(merrorBlock, mx);
 		}
+	done:
 #else
 		const __m128i mhalf = _mm_set1_epi16(32);
 

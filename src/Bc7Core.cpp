@@ -9,6 +9,7 @@
 #if defined(OPTION_COUNTERS)
 #include "SnippetLevelsMinimum.h"
 #include "SnippetLevelsBuffer.h"
+#include "SnippetLevelsBufferHalf.h"
 #endif
 
 #if defined(OPTION_COUNTERS)
@@ -1316,8 +1317,8 @@ void CompressStatistics()
 
 	PRINTF("[Minimum]\tFull = %i, Short = %i",
 		gMinimumFull.load(), gMinimumShort.load());
-	PRINTF("[Estimate]\tFull = %i, Short = %i",
-		gEstimateFull.load(), gEstimateShort.load());
+	PRINTF("[Estimate]\tFull = %i, Short = %i, Half = %i",
+		gEstimateFull.load(), gEstimateShort.load(), gEstimateHalf.load());
 
 	PRINTF("\t\t[1] = %i, [2] = %i, [3] = %i, [4] = %i",
 		gLevels[1].load(), gLevels[2].load(), gLevels[3].load(), gLevels[4].load());

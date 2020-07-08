@@ -20,9 +20,11 @@ Modes 7, 1, 3 are memory-bound because of large tables, they partially limited i
 
 For premultiplied alpha it is necessary to specify "/nomask" command-line option. While extruded RGBA images can highly benefit from masking. Switch "/retina" allows future artifact-free scaling by 0.5. Masking gives smaller compressed images and better borders, because masked pixels can have any value.
 
+Many encoders use single metric (RMSE / MSE / PSNR) insensitive to a direction. While SSIM is unhandy for direct compression, it enhances correlation when encoding produces equal deltas and so SSIM overcomes dithering.
+
 ## Usage
 
-The solution was tested on SSSE3, SSE4.1, AVX, AVX2, AVX512BW - capable CPUs for Win64 API only.
+The solution was tested on SSSE3, SSE4.1, AVX, AVX2, AVX-512BW - capable CPUs for Win64 API only.
 
 `Bc7Compress /nomask /noflip source.png destination.ktx [/debug result.png]`
 
