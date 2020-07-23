@@ -215,7 +215,15 @@ public:
 
 		for (int i = 0; i < n; i++)
 		{
+#if defined(WIN32)
+			// The default stack size is 1MB on Windows
 			std::thread thread(std::bind(ThreadProc, this));
+#else
+			// The default stack size is 512kB on macOS and Linux
+			boost::thread::attributes attrs;
+			attrs.set_stack_size(1 << 20);
+			boost::thread thread(attrs, boost::bind(ThreadProc, this));
+#endif
 			thread.detach();
 		}
 
