@@ -28,7 +28,7 @@ The solution was tested on SSSE3, SSE4.1, AVX, AVX2, AVX-512BW - capable CPUs fo
 
 `Bc7Compress /nomask /noflip source.png destination.ktx [/debug result.png]`
 
-I would recommend using AVX2 for the best performance. See Bc7Mode.h about settings.
+I would recommend using AVX2 or AVX-512 for the best performance. See Bc7Mode.h about settings.
 
 ## Example
 

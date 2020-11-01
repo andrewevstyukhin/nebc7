@@ -87,7 +87,7 @@ public:
 		if (!InitializeCriticalSectionAndSpinCount(&_Sync, 1000))
 			throw std::runtime_error("init");
 
-		_Done = CreateEvent(NULL, FALSE, FALSE, NULL);
+		_Done = CreateEventW(NULL, FALSE, FALSE, NULL);
 		if (_Done == nullptr)
 			throw std::runtime_error("init");
 #endif
@@ -280,6 +280,7 @@ void ProcessTexture(uint8_t* dst, uint8_t* src_bgra, uint8_t* mask_agrb, int str
 
 static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
 {
+#if defined(__SSSE3__)
 	const __m128i mrot = _mm_set_epi8(
 		0 + 12, 2 + 12, 1 + 12, 3 + 12,
 		0 + 8, 2 + 8, 1 + 8, 3 + 8,
@@ -287,6 +288,19 @@ static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
 		0, 2, 1, 3);
 
 	return _mm_shuffle_epi8(mc, mrot);
+#else
+	const __m128i mzero = _mm_setzero_si128();
+
+	__m128i mL = _mm_unpacklo_epi8(mc, mzero);
+	__m128i mH = _mm_unpackhi_epi8(mc, mzero);
+
+	mL = _mm_shufflelo_epi16(mL, _MM_SHUFFLE(0, 2, 1, 3));
+	mH = _mm_shufflelo_epi16(mH, _MM_SHUFFLE(0, 2, 1, 3));
+	mL = _mm_shufflehi_epi16(mL, _MM_SHUFFLE(0, 2, 1, 3));
+	mH = _mm_shufflehi_epi16(mH, _MM_SHUFFLE(0, 2, 1, 3));
+
+	return _mm_packus_epi16(mL, mH);
+#endif
 }
 
 bool DetectGlitches(const Cell& input, const Cell& output) noexcept

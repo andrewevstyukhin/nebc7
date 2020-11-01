@@ -170,7 +170,80 @@ namespace Mode5 {
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
-#if defined(OPTION_AVX2)
+#if defined(OPTION_AVX512)
+		const __m512i wrot = _mm512_broadcast_i32x4(GetRotationShuffleNarrow(rotation));
+		const __m256i vhalf = _mm256_set1_epi16(32);
+		const __m512i wweights = _mm512_broadcastq_epi64(mweights);
+
+		mc = _mm_packus_epi16(mc, mc);
+		__m256i vc = _mm256_broadcastq_epi64(mc);
+
+		const __m512i wmask3 = _mm512_shuffle_epi8(_mm512_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0), wrot);
+		const __m512i wweights3 = _mm512_and_epi32(wweights, wmask3);
+		const __m512i wweights1 = _mm512_shuffle_epi8(_mm512_andnot_epi32(wmask3, wweights), wrot);
+
+		vc = _mm256_shuffle_epi8(vc, _mm512_castsi512_si256(wrot));
+
+		__m256i vt = *(const __m256i*)gTableInterpolate2_U8;
+
+		vt = _mm256_maddubs_epi16(vc, vt);
+
+		vt = _mm256_add_epi16(vt, vhalf);
+
+		vt = _mm256_srli_epi16(vt, 6);
+
+		__m512i wtx = _mm512_broadcast_i32x4(_mm256_castsi256_si128(vt));
+		__m512i wty = _mm512_broadcast_i32x4(_mm256_extracti128_si256(vt, 1));
+
+		int k = 16;
+		const __m512i* p = (const __m512i*)area.DataMask_I16;
+		do
+		{
+			__m512i wpacked = _mm512_load_epi64(p);
+			__m512i wpixel = _mm512_unpacklo_epi64(wpacked, wpacked);
+			__m512i wmask = _mm512_unpackhi_epi64(wpacked, wpacked);
+
+			__m512i wx = _mm512_sub_epi16(wpixel, wtx);
+			__m512i wy = _mm512_sub_epi16(wpixel, wty);
+
+			wx = _mm512_abs_epi16(wx);
+			wy = _mm512_abs_epi16(wy);
+
+			wx = _mm512_srli_epi16(wx, kDenoise);
+			wy = _mm512_srli_epi16(wy, kDenoise);
+
+			wx = _mm512_mullo_epi16(wx, wx);
+			wy = _mm512_mullo_epi16(wy, wy);
+
+			wx = _mm512_and_epi32(wx, wmask);
+			wy = _mm512_and_epi32(wy, wmask);
+
+			__m512i wa = _mm512_shuffle_epi8(_mm512_min_epi16(wx, wy), wrot);
+
+			wx = _mm512_madd_epi16(wx, wweights3);
+			wy = _mm512_madd_epi16(wy, wweights3);
+			wa = _mm512_madd_epi16(wa, wweights1);
+
+			wx = _mm512_add_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(2, 3, 0, 1)));
+			wy = _mm512_add_epi32(wy, _mm512_shuffle_epi32(wy, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			wx = _mm512_min_epi32(wx, wy);
+			wa = _mm512_min_epi32(wa, _mm512_shuffle_epi32(wa, _MM_SHUFFLE(1, 0, 3, 2)));
+			wx = _mm512_min_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			wx = _mm512_add_epi32(wx, wa);
+
+			__m256i vx = _mm256_add_epi32(_mm512_extracti64x4_epi64(wx, 1), _mm512_castsi512_si256(wx));
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
+
+			p++;
+
+			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+				break;
+
+		} while ((k -= 4) > 0);
+#elif defined(OPTION_AVX2)
 		const __m256i vrot = _mm256_broadcastsi128_si256(GetRotationShuffleNarrow(rotation));
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vweights = _mm256_broadcastq_epi64(mweights);
@@ -184,35 +257,32 @@ namespace Mode5 {
 
 		vc = _mm256_shuffle_epi8(vc, vrot);
 
-		__m256i vt0 = *(const __m256i*)&gTableInterpolate2_U8[0];
-		__m256i vt1 = *(const __m256i*)&gTableInterpolate2_U8[2];
+		__m256i vt = *(const __m256i*)gTableInterpolate2_U8;
 
-		vt0 = _mm256_maddubs_epi16(vc, vt0);
-		vt1 = _mm256_maddubs_epi16(vc, vt1);
+		vt = _mm256_maddubs_epi16(vc, vt);
 
-		vt0 = _mm256_add_epi16(vt0, vhalf);
-		vt1 = _mm256_add_epi16(vt1, vhalf);
+		vt = _mm256_add_epi16(vt, vhalf);
 
-		vt0 = _mm256_srli_epi16(vt0, 6);
-		vt1 = _mm256_srli_epi16(vt1, 6);
+		vt = _mm256_srli_epi16(vt, 6);
 
-		__m256i vtx = _mm256_permute4x64_epi64(vt0, 0x44);
-		__m256i vty = _mm256_permute4x64_epi64(vt0, 0xEE);
-		__m256i vtz = _mm256_permute4x64_epi64(vt1, 0x44);
-		__m256i vtw = _mm256_permute4x64_epi64(vt1, 0xEE);
+		__m256i vtx = _mm256_permute4x64_epi64(vt, 0x44);
+		__m256i vty = _mm256_permute4x64_epi64(vt, 0xEE);
 
+		int k = 16;
 		const __m256i* p = (const __m256i*)area.DataMask_I16;
-
-		for (size_t i = 0; i < 16; i += 2)
+		do
 		{
-			__m256i vpacked = _mm256_load_si256(p);
-			__m256i vpixel = _mm256_unpacklo_epi64(vpacked, vpacked);
-			__m256i vmask = _mm256_unpackhi_epi64(vpacked, vpacked);
+			__m256i vpacked0 = _mm256_load_si256(&p[0]);
+			__m256i vpacked1 = _mm256_load_si256(&p[1]);
+			__m256i vpixel0 = _mm256_unpacklo_epi64(vpacked0, vpacked0);
+			__m256i vpixel1 = _mm256_unpacklo_epi64(vpacked1, vpacked1);
+			__m256i vmask0 = _mm256_unpackhi_epi64(vpacked0, vpacked0);
+			__m256i vmask1 = _mm256_unpackhi_epi64(vpacked1, vpacked1);
 
-			__m256i vx = _mm256_sub_epi16(vpixel, vtx);
-			__m256i vy = _mm256_sub_epi16(vpixel, vty);
-			__m256i vz = _mm256_sub_epi16(vpixel, vtz);
-			__m256i vw = _mm256_sub_epi16(vpixel, vtw);
+			__m256i vx = _mm256_sub_epi16(vpixel0, vtx);
+			__m256i vy = _mm256_sub_epi16(vpixel0, vty);
+			__m256i vz = _mm256_sub_epi16(vpixel1, vtx);
+			__m256i vw = _mm256_sub_epi16(vpixel1, vty);
 
 			vx = _mm256_abs_epi16(vx);
 			vy = _mm256_abs_epi16(vy);
@@ -229,34 +299,47 @@ namespace Mode5 {
 			vz = _mm256_mullo_epi16(vz, vz);
 			vw = _mm256_mullo_epi16(vw, vw);
 
-			vx = _mm256_and_si256(vx, vmask);
-			vy = _mm256_and_si256(vy, vmask);
-			vz = _mm256_and_si256(vz, vmask);
-			vw = _mm256_and_si256(vw, vmask);
+			vx = _mm256_and_si256(vx, vmask0);
+			vy = _mm256_and_si256(vy, vmask0);
+			vz = _mm256_and_si256(vz, vmask1);
+			vw = _mm256_and_si256(vw, vmask1);
 
-			__m256i va = _mm256_shuffle_epi8(_mm256_min_epi16(vx, vy), vrot);
+			__m256i va0 = _mm256_shuffle_epi8(_mm256_min_epi16(vx, vy), vrot);
+			__m256i va1 = _mm256_shuffle_epi8(_mm256_min_epi16(vz, vw), vrot);
 
 			vx = _mm256_madd_epi16(vx, vweights3);
 			vy = _mm256_madd_epi16(vy, vweights3);
-			va = _mm256_madd_epi16(va, vweights1);
+			vz = _mm256_madd_epi16(vz, vweights3);
+			vw = _mm256_madd_epi16(vw, vweights3);
+			va0 = _mm256_madd_epi16(va0, vweights1);
+			va1 = _mm256_madd_epi16(va1, vweights1);
 
 			vx = _mm256_add_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
 			vy = _mm256_add_epi32(vy, _mm256_shuffle_epi32(vy, _MM_SHUFFLE(2, 3, 0, 1)));
+			vz = _mm256_add_epi32(vz, _mm256_shuffle_epi32(vz, _MM_SHUFFLE(2, 3, 0, 1)));
+			vw = _mm256_add_epi32(vw, _mm256_shuffle_epi32(vw, _MM_SHUFFLE(2, 3, 0, 1)));
 
 			vx = _mm256_min_epi32(vx, vy);
-			va = _mm256_min_epi32(va, _mm256_shuffle_epi32(va, _MM_SHUFFLE(1, 0, 3, 2)));
+			vz = _mm256_min_epi32(vz, vw);
+			va0 = _mm256_min_epi32(va0, _mm256_shuffle_epi32(va0, _MM_SHUFFLE(1, 0, 3, 2)));
+			va1 = _mm256_min_epi32(va1, _mm256_shuffle_epi32(va1, _MM_SHUFFLE(1, 0, 3, 2)));
 			vx = _mm256_min_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(1, 0, 3, 2)));
+			vz = _mm256_min_epi32(vz, _mm256_shuffle_epi32(vz, _MM_SHUFFLE(1, 0, 3, 2)));
 
-			vx = _mm256_add_epi32(vx, va);
+			vx = _mm256_add_epi32(vx, va0);
+			vz = _mm256_add_epi32(vz, va1);
+
+			vx = _mm256_add_epi32(vx, vz);
 
 			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
 			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
 
-			p++;
+			p += 2;
 
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
 				break;
-		}
+
+		} while ((k -= 4) > 0);
 #else
 		const __m128i mrot = GetRotationShuffleNarrow(rotation);
 		const __m128i mhalf = _mm_set1_epi16(32);
@@ -358,7 +441,7 @@ namespace Mode5 {
 
 			const __m128i mweights3 = _mm_and_si128(mmask3, gWeightsAGRB);
 
-			error3 = ComputeSubsetTable(area, mweights3, state3, 4);
+			error3 = ComputeSubsetTable2(area, mweights3, state3);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{
@@ -399,7 +482,7 @@ namespace Mode5 {
 
 			const __m128i mweights1 = _mm_andnot_si128(mmask3, gWeightsAGRB);
 
-			error1 = ComputeSubsetTable(area, mweights1, state1, 4);
+			error1 = ComputeSubsetTable2(area, mweights1, state1);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{

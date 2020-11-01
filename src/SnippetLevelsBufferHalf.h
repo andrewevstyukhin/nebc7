@@ -2,6 +2,7 @@
 
 #include "pch.h"
 #include "Bc7Core.h"
+#include "SnippetStoreNodeShort.h"
 
 #if defined(OPTION_COUNTERS)
 inline std::atomic_int gEstimateHalf;
@@ -127,6 +128,7 @@ public:
 
 		const __m128i mtop = _mm_shuffle_epi32(_mm_shufflelo_epi16(_mm_cvtsi32_si128(top), 0), 0);
 
+		int zeroes = 0;
 		{
 			const int pH = reverse ? (pbits & 1) : (pbits >> 8);
 			const int pL = reverse ? (pbits >> 8) : (pbits & 1);
@@ -137,17 +139,43 @@ public:
 			{
 				int cH = (iH << shift);
 
-				Estimate16PStep8Short(nodesPtr, values, count, cH, LH + cH, mtop, pL);
+				zeroes += Estimate32PStep8Short(nodesPtr, values, count, cH, LH + cH, mtop, pL);
+				if (zeroes >= MaxSize)
+					break;
 			}
 		}
 
 		NodeShort* sorted = nodes1;
-		if (int nodesCount = int(nodesPtr - nodes1); nodesCount)
+		int nodesCount = int(nodesPtr - sorted);
+		if (zeroes >= MaxSize)
 		{
-			sorted = radix_sort(nodes1, nodes2, (uint32_t)nodesCount);
+			const NodeShort* r = sorted;
+			NodeShort* w = nodes2;
+			do
+			{
+				const NodeShort val = *r++;
+				*w = val;
 
-			MinErr = (sorted[0].ColorError >> 16) * weight;
-			Count = Min(nodesCount, MaxSize);
+				int zero = (val.ColorError & 0xFFFF0000) == 0;
+				zeroes -= zero;
+				w += static_cast<uint32_t>(zero);
+
+			} while (zeroes > 0);
+
+			sorted = nodes2;
+
+			MinErr = 0;
+			Count = MaxSize;
+		}
+		else
+		{
+			if (nodesCount)
+			{
+				sorted = radix_sort(sorted, nodes2, (uint32_t)nodesCount);
+
+				MinErr = (sorted[0].ColorError >> 16) * weight;
+				Count = Min(nodesCount, MaxSize);
+			}
 		}
 
 		if (reverse)
@@ -192,30 +220,137 @@ public:
 	}
 
 private:
+#if defined(OPTION_AVX512)
 
-	static ALWAYS_INLINED void Store8P(NodeShort*& nodesPtr, __m128i msum, int flags, const int c) noexcept
+	static INLINED int Estimate32PStep8Short(NodeShort*& nodesPtr, const uint8_t* values[16], const size_t count, const int cH, int hL, const __m128i mtop, const int pL) noexcept
 	{
-		for (int i = 0; i < 8; i++)
-		{
-			nodesPtr->Init(_mm_cvtsi128_si64(msum), c + i + i);
-			nodesPtr += flags & 1;
+		const __m512i wtop = _mm512_broadcastw_epi16(mtop);
 
-			msum = _mm_alignr_epi8(msum, msum, 2);
-			flags >>= 2;
+		const __m128i mshift = _mm_cvtsi32_si128(pL << 2);
+		const __m256i vmask = _mm256_set1_epi8(0xF);
+
+		__m512i wzeroes = _mm512_setzero_si512();
+
+		int c = cH;
+		for (;;)
+		{
+			__m512i wsum = _mm512_setzero_si512();
+			__m512i wsum1 = _mm512_setzero_si512();
+
+			int k = static_cast<int>(count);
+			const uint8_t** p = values;
+
+			while ((k -= 2) >= 0)
+			{
+				auto value = p[0];
+				auto value1 = p[1];
+
+				const __m256i* p0 = (const __m256i*)&value[c >> 1];
+				const __m256i* p1 = (const __m256i*)&value1[c >> 1];
+
+				__m256i vdelta = _mm256_load_si256(p0);
+				__m256i vdelta1 = _mm256_load_si256(p1);
+
+				vdelta = _mm256_and_si256(_mm256_srl_epi16(vdelta, mshift), vmask);
+				vdelta1 = _mm256_and_si256(_mm256_srl_epi16(vdelta1, mshift), vmask);
+
+				__m512i wadd = _mm512_cvtepu8_epi16(vdelta);
+				__m512i wadd1 = _mm512_cvtepu8_epi16(vdelta1);
+
+				wadd = _mm512_mullo_epi16(wadd, wadd);
+				wadd1 = _mm512_mullo_epi16(wadd1, wadd1);
+
+				wsum = _mm512_add_epi16(wsum, wadd);
+				wsum1 = _mm512_add_epi16(wsum1, wadd1);
+
+				p += 2;
+			}
+
+			wsum = _mm512_add_epi16(wsum, wsum1);
+
+			if (k & 1)
+			{
+				auto value = p[0];
+
+				const __m256i* p0 = (const __m256i*)&value[c >> 1];
+
+				__m256i vdelta = _mm256_load_si256(p0);
+
+				vdelta = _mm256_and_si256(_mm256_srl_epi16(vdelta, mshift), vmask);
+
+				__m512i wadd = _mm512_cvtepu8_epi16(vdelta);
+
+				wadd = _mm512_mullo_epi16(wadd, wadd);
+
+				wsum = _mm512_add_epi16(wsum, wadd);
+			}
+
+			uint32_t flags = _mm512_cmp_epi16_mask(wtop, wsum, _MM_CMPINT_GT);
+
+			const __m512i wbottom = _mm512_movm_epi16(_mm512_cmp_epi16_mask(_mm512_setzero_si512(), wsum, _MM_CMPINT_EQ));
+
+			const int tail = Max(0, (c | 63) - (hL | 7));
+			flags &= ~0u >> (tail >> 1);
+
+			wzeroes = _mm512_sub_epi16(wzeroes, wbottom);
+
+			if (flags & 0xFFFFu)
+			{
+				nodesPtr = Store16<2>(nodesPtr, _mm512_castsi512_si256(wsum), flags & 0xFFFFu, c + pL);
+			}
+
+			flags >>= 16;
+
+			if (flags)
+			{
+				nodesPtr = Store16<2>(nodesPtr, _mm512_extracti32x8_epi32(wsum, 1), flags, c + pL + 32);
+			}
+
+			c += 64;
+			if (c <= hL)
+				continue;
+
+			{
+				alignas(8) static constexpr int8_t gTail[8][8] =
+				{
+					{ 0, 0, 0, 0, 0, 0, 0, 0 },
+					{ 0, 0, 0, 0, 0, 0, 0, -1 },
+					{ 0, 0, 0, 0, 0, 0, -1, -1 },
+					{ 0, 0, 0, 0, 0, -1, -1, -1 },
+					{ 0, 0, 0, 0, -1, -1, -1, -1 },
+					{ 0, 0, 0, -1, -1, -1, -1, -1 },
+					{ 0, 0, -1, -1, -1, -1, -1, -1 },
+					{ 0, -1, -1, -1, -1, -1, -1, -1 }
+				};
+
+				const __m128i mtail = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(reinterpret_cast<const uint8_t*>(gTail) + static_cast<uint32_t>(tail)));
+
+				wzeroes = _mm512_add_epi16(wzeroes, _mm512_and_epi32(wbottom, _mm512_cvtepi8_epi64(mtail)));
+
+				__m256i vzeroes = _mm256_add_epi16(_mm512_castsi512_si256(wzeroes), _mm512_extracti32x8_epi32(wzeroes, 1));
+				__m128i mzeroes = _mm_add_epi16(_mm256_castsi256_si128(vzeroes), _mm256_extracti128_si256(vzeroes, 1));
+				mzeroes = _mm_add_epi16(mzeroes, _mm_shuffle_epi32(mzeroes, _MM_SHUFFLE(1, 0, 3, 2)));
+				mzeroes = _mm_add_epi16(mzeroes, _mm_shufflelo_epi16(mzeroes, _MM_SHUFFLE(1, 0, 3, 2)));
+				mzeroes = _mm_add_epi16(mzeroes, _mm_shufflelo_epi16(mzeroes, _MM_SHUFFLE(2, 3, 0, 1)));
+
+				return _mm_extract_epi16(mzeroes, 0);
+			}
 		}
 	}
 
-#if defined(OPTION_AVX2)
+#elif defined(OPTION_AVX2)
 
-	static INLINED void Estimate16PStep8Short(NodeShort*& nodesPtr, const uint8_t* values[16], const size_t count, const int cH, int hL, const __m128i mtop, const int pL) noexcept
+	static INLINED int Estimate32PStep8Short(NodeShort*& nodesPtr, const uint8_t* values[16], const size_t count, const int cH, int hL, const __m128i mtop, const int pL) noexcept
 	{
 		const __m256i vtop = _mm256_broadcastw_epi16(mtop);
 
 		const __m128i mshift = _mm_cvtsi32_si128(pL << 2);
 		const __m128i mmask = _mm_set1_epi8(0xF);
 
+		__m256i vzeroes = _mm256_setzero_si256();
+
 		int c = cH;
-		do
+		for (;;)
 		{
 			__m256i vsum = _mm256_setzero_si256();
 
@@ -235,34 +370,65 @@ private:
 				vsum = _mm256_add_epi16(vsum, vadd);
 			}
 
-			int flags = _mm256_movemask_epi8(_mm256_cmpgt_epi16(vtop, vsum));
+			uint32_t flags = static_cast<uint32_t>(_mm256_movemask_epi8(_mm256_cmpgt_epi16(vtop, vsum)));
 
-			flags &= static_cast<int>(~0u >> Max(0, (c | 31) - (hL | 7)));
+			const __m256i vbottom = _mm256_cmpeq_epi16(_mm256_setzero_si256(), vsum);
 
-			if (flags & 0xFFFF)
+			const int tail = Max(0, (c | 31) - (hL | 7));
+			flags &= ~0u >> tail;
+
+			vzeroes = _mm256_sub_epi16(vzeroes, vbottom);
+
+			if (flags & 0xFFFFu)
 			{
-				Store8P(nodesPtr, _mm256_castsi256_si128(vsum), flags, c + pL);
+				nodesPtr = Store8<2>(nodesPtr, _mm256_castsi256_si128(vsum), flags, c + pL);
 			}
 
-			if (flags & 0xFFFF0000)
+			flags >>= 16;
+
+			if (flags)
 			{
-				Store8P(nodesPtr, _mm256_extracti128_si256(vsum, 1), flags >> 16, c + pL + 16);
+				nodesPtr = Store8<2>(nodesPtr, _mm256_extracti128_si256(vsum, 1), flags, c + pL + 16);
 			}
 
 			c += 32;
+			if (c <= hL)
+				continue;
 
-		} while (c <= hL);
+			{
+				alignas(8) static constexpr int16_t gTail[4][4] =
+				{
+					{ 0, 0, 0, 0 },
+					{ 0, 0, 0, -1 },
+					{ 0, 0, -1, -1 },
+					{ 0, -1, -1, -1 }
+				};
+
+				const __m128i mtail = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(reinterpret_cast<const uint8_t*>(gTail) + static_cast<uint32_t>(tail)));
+
+				vzeroes = _mm256_add_epi16(vzeroes, _mm256_and_si256(vbottom, _mm256_cvtepi8_epi32(mtail)));
+
+				__m128i mzeroes = _mm_add_epi16(_mm256_castsi256_si128(vzeroes), _mm256_extracti128_si256(vzeroes, 1));
+				mzeroes = _mm_add_epi16(mzeroes, _mm_shuffle_epi32(mzeroes, _MM_SHUFFLE(1, 0, 3, 2)));
+				mzeroes = _mm_add_epi16(mzeroes, _mm_shufflelo_epi16(mzeroes, _MM_SHUFFLE(1, 0, 3, 2)));
+				mzeroes = _mm_add_epi16(mzeroes, _mm_shufflelo_epi16(mzeroes, _MM_SHUFFLE(2, 3, 0, 1)));
+
+				return _mm_extract_epi16(mzeroes, 0);
+			}
+		}
 	}
 
 #else
 
-	static INLINED void Estimate16PStep8Short(NodeShort*& nodesPtr, const uint8_t* values[16], const size_t count, const int cH, int hL, const __m128i mtop, const int pL) noexcept
+	static INLINED int Estimate32PStep8Short(NodeShort*& nodesPtr, const uint8_t* values[16], const size_t count, const int cH, int hL, const __m128i mtop, const int pL) noexcept
 	{
 		const __m128i mshift = _mm_cvtsi32_si128(pL << 2);
 		const __m128i mmask = _mm_set1_epi8(0xF);
 
+		__m128i mzeroes = _mm_setzero_si128();
+
 		int c = cH;
-		do
+		for (;;)
 		{
 			__m128i msum = _mm_setzero_si128();
 
@@ -282,18 +448,42 @@ private:
 				msum = _mm_add_epi16(msum, madd);
 			}
 
-			int flags = _mm_movemask_epi8(_mm_cmpgt_epi16(mtop, msum));
+			uint32_t flags = static_cast<uint32_t>(_mm_movemask_epi8(_mm_cmpgt_epi16(mtop, msum)));
 
-			flags &= (0xFFFF >> Max(0, (c | 15) - (hL | 7)));
+			const __m128i mbottom = _mm_cmpeq_epi16(_mm_setzero_si128(), msum);
+
+			const int tail = Max(0, (c | 15) - (hL | 7));
+			flags &= 0xFFFFu >> tail;
+
+			mzeroes = _mm_sub_epi16(mzeroes, mbottom);
 
 			if (flags)
 			{
-				Store8P(nodesPtr, msum, flags, c + pL);
+				nodesPtr = Store8<2>(nodesPtr, msum, flags, c + pL);
 			}
 
 			c += 16;
+			if (c <= hL)
+				continue;
 
-		} while (c <= hL);
+			{
+				alignas(8) static constexpr int32_t gTail[2][2] =
+				{
+					{ 0, 0 },
+					{ 0, -1 }
+				};
+
+				const __m128i mtail = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(reinterpret_cast<const uint8_t*>(gTail) + static_cast<uint32_t>(tail)));
+
+				mzeroes = _mm_add_epi16(mzeroes, _mm_and_si128(mbottom, _mm_shuffle_epi32(mtail, _MM_SHUFFLE(1, 1, 0, 0))));
+
+				mzeroes = _mm_add_epi16(mzeroes, _mm_shuffle_epi32(mzeroes, _MM_SHUFFLE(1, 0, 3, 2)));
+				mzeroes = _mm_add_epi16(mzeroes, _mm_shufflelo_epi16(mzeroes, _MM_SHUFFLE(1, 0, 3, 2)));
+				mzeroes = _mm_add_epi16(mzeroes, _mm_shufflelo_epi16(mzeroes, _MM_SHUFFLE(2, 3, 0, 1)));
+
+				return _mm_extract_epi16(mzeroes, 0);
+			}
+		}
 	}
 
 #endif

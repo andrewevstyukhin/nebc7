@@ -183,7 +183,7 @@ namespace Mode0 {
 #if defined(OPTION_COUNTERS)
 		gComputeSubsetError3++;
 #endif
-		return ComputeOpaqueSubsetError3(area, mc, _mm_cvtsi32_si128(water));
+		return ComputeSubsetError3(area, mc, gWeightsGRB, _mm_cvtsi32_si128(water));
 	}
 
 	void CompressBlockFast(Cell& input) noexcept
@@ -311,7 +311,7 @@ namespace Mode0 {
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError3GR++;
 #endif
-						e2 = ComputeOpaqueSubsetError3Pair<_MM_SHUFFLE(2, 1, 2, 1)>(area, mc, gWeightsGRGR, _mm_cvtsi32_si128(water - min3));
+						e2 = ComputeSubsetError3Pair<_MM_SHUFFLE(2, 1, 2, 1)>(area, mc, gWeightsGRGR, _mm_cvtsi32_si128(water - min3));
 						if (e2 + min3 >= water)
 							continue;
 					}
@@ -335,7 +335,7 @@ namespace Mode0 {
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError3GB++;
 #endif
-							egb = ComputeOpaqueSubsetError3Pair<_MM_SHUFFLE(3, 1, 3, 1)>(area, mc, gWeightsGBGB, _mm_cvtsi32_si128(water - min2));
+							egb = ComputeSubsetError3Pair<_MM_SHUFFLE(3, 1, 3, 1)>(area, mc, gWeightsGBGB, _mm_cvtsi32_si128(water - min2));
 							memGB[i3] = egb;
 						}
 						if (egb + min2 >= water)
@@ -350,7 +350,7 @@ namespace Mode0 {
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError3++;
 #endif
-						int err = ComputeOpaqueSubsetError3(area, mc, _mm_cvtsi32_si128(water));
+						int err = ComputeSubsetError3(area, mc, gWeightsGRB, _mm_cvtsi32_si128(water));
 
 						if (water > err)
 						{
@@ -435,7 +435,7 @@ namespace Mode0 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError3++;
 #endif
-			int water1 = ComputeOpaqueSubsetError3(area1, mc0, _mm_cvtsi32_si128(kBlockMaximalColorError));
+			int water1 = ComputeSubsetError3(area1, mc0, gWeightsGRB, _mm_cvtsi32_si128(kBlockMaximalColorError));
 			if (water1)
 			{
 				Subsets subsets1;
@@ -454,7 +454,7 @@ namespace Mode0 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError3++;
 #endif
-			int water2 = ComputeOpaqueSubsetError3(area2, mc1, _mm_cvtsi32_si128(kBlockMaximalColorError));
+			int water2 = ComputeSubsetError3(area2, mc1, gWeightsGRB, _mm_cvtsi32_si128(kBlockMaximalColorError));
 			if (water2)
 			{
 				Subsets subsets2;
@@ -473,7 +473,7 @@ namespace Mode0 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError3++;
 #endif
-			int water3 = ComputeOpaqueSubsetError3(area3, mc2, _mm_cvtsi32_si128(kBlockMaximalColorError));
+			int water3 = ComputeSubsetError3(area3, mc2, gWeightsGRB, _mm_cvtsi32_si128(kBlockMaximalColorError));
 			if (water3)
 			{
 				Subsets subsets3;

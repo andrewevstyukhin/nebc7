@@ -186,7 +186,95 @@ namespace Mode4 {
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
-#if defined(OPTION_AVX2)
+#if defined(OPTION_AVX512)
+		const __m512i wrot = _mm512_broadcast_i32x4(GetRotationShuffleNarrow(rotation));
+		const __m512i whalf = _mm512_set1_epi16(32);
+		const __m512i wweights = _mm512_shuffle_epi8(_mm512_broadcastq_epi64(mweights), wrot);
+
+		mc = _mm_packus_epi16(mc, mc);
+		__m512i wc = _mm512_broadcastq_epi64(mc);
+
+		const __m512i wmask3 = _mm512_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0);
+		const __m512i wweights3 = _mm512_and_epi32(wweights, wmask3);
+		const __m512i wweights1 = _mm512_andnot_epi32(wmask3, wweights);
+
+		__m512i wt = *(const __m512i*)gTableInterpolate2n3_U8;
+
+		wt = _mm512_maddubs_epi16(wc, wt);
+
+		wt = _mm512_add_epi16(wt, whalf);
+
+		wt = _mm512_srli_epi16(wt, 6);
+
+		__m512i wt0 = _mm512_inserti64x4(wt, _mm512_castsi512_si256(wt), 1);
+		__m512i wt1 = _mm512_inserti64x4(wt, _mm512_extracti64x4_epi64(wt, 1), 0);
+
+		__m512i wtx = _mm512_permutex_epi64(wt0, 0x44);
+		__m512i wty = _mm512_permutex_epi64(wt0, 0xEE);
+		__m512i wtz = _mm512_permutex_epi64(wt1, 0x44);
+		__m512i wtw = _mm512_permutex_epi64(wt1, 0xEE);
+
+		const __m512i* p = (const __m512i*)area.DataMask_I16;
+
+		size_t i = 0;
+		for (size_t k = area.Active; i < k; i += 4)
+		{
+			__m512i wpacked = _mm512_load_epi64(p);
+			wpacked = _mm512_shuffle_epi8(wpacked, wrot);
+
+			__m512i wpixel = _mm512_unpacklo_epi64(wpacked, wpacked);
+			__m512i wmask = _mm512_unpackhi_epi64(wpacked, wpacked);
+
+			__m512i wx = _mm512_sub_epi16(wpixel, wtx);
+			__m512i wy = _mm512_sub_epi16(wpixel, wty);
+			__m512i wz = _mm512_sub_epi16(wpixel, wtz);
+			__m512i ww = _mm512_sub_epi16(wpixel, wtw);
+
+			wx = _mm512_abs_epi16(wx);
+			wy = _mm512_abs_epi16(wy);
+			wz = _mm512_abs_epi16(wz);
+			ww = _mm512_abs_epi16(ww);
+
+			wx = _mm512_srli_epi16(wx, kDenoise);
+			wy = _mm512_srli_epi16(wy, kDenoise);
+			wz = _mm512_srli_epi16(wz, kDenoise);
+			ww = _mm512_srli_epi16(ww, kDenoise);
+
+			wx = _mm512_mullo_epi16(wx, wx);
+			wy = _mm512_mullo_epi16(wy, wy);
+			wz = _mm512_mullo_epi16(wz, wz);
+			ww = _mm512_mullo_epi16(ww, ww);
+
+			wx = _mm512_and_epi32(wx, wmask);
+			wy = _mm512_and_epi32(wy, wmask);
+			wz = _mm512_and_epi32(wz, wmask);
+			ww = _mm512_and_epi32(ww, wmask);
+
+			__m512i wa = _mm512_min_epi16(_mm512_min_epi16(wx, wy), _mm512_min_epi16(wz, ww));
+
+			wx = _mm512_madd_epi16(wx, wweights3);
+			wy = _mm512_madd_epi16(wy, wweights3);
+			wa = _mm512_madd_epi16(wa, wweights1);
+
+			wx = _mm512_add_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(2, 3, 0, 1)));
+			wy = _mm512_add_epi32(wy, _mm512_shuffle_epi32(wy, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			wx = _mm512_min_epi32(wx, wy);
+			wa = _mm512_min_epi32(wa, _mm512_shuffle_epi32(wa, _MM_SHUFFLE(1, 0, 3, 2)));
+			wx = _mm512_min_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			wx = _mm512_add_epi32(wx, wa);
+
+			__m256i vx = _mm256_add_epi32(_mm512_extracti64x4_epi64(wx, 1), _mm512_castsi512_si256(wx));
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
+
+			p++;
+
+			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+				goto done;
+		}
+#elif defined(OPTION_AVX2)
 		const __m256i vrot = _mm256_broadcastsi128_si256(GetRotationShuffleNarrow(rotation));
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastq_epi64(mweights), vrot);
@@ -217,7 +305,8 @@ namespace Mode4 {
 
 		const __m256i* p = (const __m256i*)area.DataMask_I16;
 
-		for (size_t i = 0; i < 16; i += 2)
+		size_t i = 0;
+		for (size_t k = area.Active; i < k; i += 2)
 		{
 			__m256i vpacked = _mm256_load_si256(p);
 			vpacked = _mm256_shuffle_epi8(vpacked, vrot);
@@ -270,7 +359,7 @@ namespace Mode4 {
 			p++;
 
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-				break;
+				goto done;
 		}
 #else
 		const __m128i mrot = GetRotationShuffleNarrow(rotation);
@@ -303,7 +392,8 @@ namespace Mode4 {
 		mtz = _mm_srli_epi16(mtz, 6);
 		mtw = _mm_srli_epi16(mtw, 6);
 
-		for (size_t i = 0; i < 16; i++)
+		size_t i = 0;
+		for (size_t k = area.Active; i < k; i++)
 		{
 			__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 			mpacked = _mm_shuffle_epi8(mpacked, mrot);
@@ -352,10 +442,52 @@ namespace Mode4 {
 			merrorBlock = _mm_add_epi32(merrorBlock, mx);
 
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-				break;
+				goto done;
 		}
 #endif
 
+		if (i < 16)
+		{
+#if defined(OPTION_AVX512)
+			__m128i mx = _mm_min_epi16(_mm512_castsi512_si128(wtx), _mm512_castsi512_si128(wtw));
+
+			__m128i mweight = _mm_or_si128(_mm512_castsi512_si128(wweights3), _mm512_castsi512_si128(wweights1));
+
+			mx = _mm_shuffle_epi8(mx, _mm512_castsi512_si128(wrot));
+
+			mweight = _mm_shuffle_epi8(mweight, _mm512_castsi512_si128(wrot));
+#elif defined(OPTION_AVX2)
+			__m128i mx = _mm_min_epi16(_mm256_castsi256_si128(vtx), _mm256_castsi256_si128(vtw));
+
+			__m128i mweight = _mm_or_si128(_mm256_castsi256_si128(vweights3), _mm256_castsi256_si128(vweights1));
+
+			mx = _mm_shuffle_epi8(mx, _mm256_castsi256_si128(vrot));
+
+			mweight = _mm_shuffle_epi8(mweight, _mm256_castsi256_si128(vrot));
+#else
+			__m128i mx = _mm_min_epi16(mtx, mtw);
+
+			__m128i mweight = _mm_or_si128(mweights3, mweights1);
+
+			mx = _mm_shuffle_epi8(mx, mrot);
+
+			mweight = _mm_shuffle_epi8(mweight, mrot);
+#endif
+
+			mx = _mm_min_epi16(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			mweight = _mm_mullo_epi16(mweight, _mm_cvtsi32_si128(static_cast<int>(16 - i)));
+
+			mx = _mm_srli_epi16(mx, kDenoise);
+
+			mx = _mm_mullo_epi16(mx, mx);
+
+			mx = _mm_madd_epi16(mx, mweight);
+
+			merrorBlock = _mm_add_epi32(merrorBlock, mx);
+		}
+
+	done:
 		return _mm_cvtsi128_si32(merrorBlock);
 	}
 
@@ -363,7 +495,99 @@ namespace Mode4 {
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
-#if defined(OPTION_AVX2)
+#if defined(OPTION_AVX512)
+		const __m512i wrot = _mm512_broadcast_i32x4(GetRotationShuffleNarrow(rotation));
+		const __m512i whalf = _mm512_set1_epi16(32);
+		const __m512i wweights = _mm512_shuffle_epi8(_mm512_broadcastq_epi64(mweights), wrot);
+
+		mc = _mm_packus_epi16(mc, mc);
+		__m512i wc = _mm512_broadcastq_epi64(mc);
+
+		const __m512i wmask3 = _mm512_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0);
+		const __m512i wweights3 = _mm512_and_epi32(wweights, wmask3);
+		const __m512i wweights1 = _mm512_andnot_epi32(wmask3, wweights);
+
+		__m512i wt = *(const __m512i*)gTableInterpolate3n2_U8;
+
+		wt = _mm512_maddubs_epi16(wc, wt);
+
+		wt = _mm512_add_epi16(wt, whalf);
+
+		wt = _mm512_srli_epi16(wt, 6);
+
+		__m512i wt0 = _mm512_inserti64x4(wt, _mm512_castsi512_si256(wt), 1);
+		__m512i wt1 = _mm512_inserti64x4(wt, _mm512_extracti64x4_epi64(wt, 1), 0);
+
+		__m512i wtx = _mm512_permutex_epi64(wt0, 0x44);
+		__m512i wty = _mm512_permutex_epi64(wt0, 0xEE);
+		__m512i wtz = _mm512_permutex_epi64(wt1, 0x44);
+		__m512i wtw = _mm512_permutex_epi64(wt1, 0xEE);
+
+		const __m512i* p = (const __m512i*)area.DataMask_I16;
+
+		size_t i = 0;
+		for (size_t k = area.Active; i < k; i += 4)
+		{
+			__m512i wpacked = _mm512_load_epi64(p);
+			wpacked = _mm512_shuffle_epi8(wpacked, wrot);
+
+			__m512i wpixel = _mm512_unpacklo_epi64(wpacked, wpacked);
+			__m512i wmask = _mm512_unpackhi_epi64(wpacked, wpacked);
+
+			__m512i wx = _mm512_sub_epi16(wpixel, wtx);
+			__m512i wy = _mm512_sub_epi16(wpixel, wty);
+			__m512i wz = _mm512_sub_epi16(wpixel, wtz);
+			__m512i ww = _mm512_sub_epi16(wpixel, wtw);
+
+			wx = _mm512_abs_epi16(wx);
+			wy = _mm512_abs_epi16(wy);
+			wz = _mm512_abs_epi16(wz);
+			ww = _mm512_abs_epi16(ww);
+
+			wx = _mm512_srli_epi16(wx, kDenoise);
+			wy = _mm512_srli_epi16(wy, kDenoise);
+			wz = _mm512_srli_epi16(wz, kDenoise);
+			ww = _mm512_srli_epi16(ww, kDenoise);
+
+			wx = _mm512_mullo_epi16(wx, wx);
+			wy = _mm512_mullo_epi16(wy, wy);
+			wz = _mm512_mullo_epi16(wz, wz);
+			ww = _mm512_mullo_epi16(ww, ww);
+
+			wx = _mm512_and_epi32(wx, wmask);
+			wy = _mm512_and_epi32(wy, wmask);
+			wz = _mm512_and_epi32(wz, wmask);
+			ww = _mm512_and_epi32(ww, wmask);
+
+			__m512i wa = _mm512_min_epi16(wx, wy);
+
+			wx = _mm512_madd_epi16(wx, wweights3);
+			wy = _mm512_madd_epi16(wy, wweights3);
+			wz = _mm512_madd_epi16(wz, wweights3);
+			ww = _mm512_madd_epi16(ww, wweights3);
+			wa = _mm512_madd_epi16(wa, wweights1);
+
+			wx = _mm512_add_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(2, 3, 0, 1)));
+			wy = _mm512_add_epi32(wy, _mm512_shuffle_epi32(wy, _MM_SHUFFLE(2, 3, 0, 1)));
+			wz = _mm512_add_epi32(wz, _mm512_shuffle_epi32(wz, _MM_SHUFFLE(2, 3, 0, 1)));
+			ww = _mm512_add_epi32(ww, _mm512_shuffle_epi32(ww, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			wx = _mm512_min_epi32(_mm512_min_epi32(wx, wy), _mm512_min_epi32(wz, ww));
+			wa = _mm512_min_epi32(wa, _mm512_shuffle_epi32(wa, _MM_SHUFFLE(1, 0, 3, 2)));
+			wx = _mm512_min_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			wx = _mm512_add_epi32(wx, wa);
+
+			__m256i vx = _mm256_add_epi32(_mm512_extracti64x4_epi64(wx, 1), _mm512_castsi512_si256(wx));
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_castsi256_si128(vx));
+			merrorBlock = _mm_add_epi32(merrorBlock, _mm256_extracti128_si256(vx, 1));
+
+			p++;
+
+			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
+				goto done;
+		}
+#elif defined(OPTION_AVX2)
 		const __m256i vrot = _mm256_broadcastsi128_si256(GetRotationShuffleNarrow(rotation));
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastq_epi64(mweights), vrot);
@@ -394,7 +618,8 @@ namespace Mode4 {
 
 		const __m256i* p = (const __m256i*)area.DataMask_I16;
 
-		for (size_t i = 0; i < 16; i += 2)
+		size_t i = 0;
+		for (size_t k = area.Active; i < k; i += 2)
 		{
 			__m256i vpacked = _mm256_load_si256(p);
 			vpacked = _mm256_shuffle_epi8(vpacked, vrot);
@@ -451,7 +676,7 @@ namespace Mode4 {
 			p++;
 
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-				break;
+				goto done;
 		}
 #else
 		const __m128i mrot = GetRotationShuffleNarrow(rotation);
@@ -484,7 +709,8 @@ namespace Mode4 {
 		mtz = _mm_srli_epi16(mtz, 6);
 		mtw = _mm_srli_epi16(mtw, 6);
 
-		for (size_t i = 0; i < 16; i++)
+		size_t i = 0;
+		for (size_t k = area.Active; i < k; i++)
 		{
 			__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 			mpacked = _mm_shuffle_epi8(mpacked, mrot);
@@ -529,9 +755,7 @@ namespace Mode4 {
 			mz = _mm_add_epi32(mz, _mm_shuffle_epi32(mz, _MM_SHUFFLE(2, 3, 0, 1)));
 			mw = _mm_add_epi32(mw, _mm_shuffle_epi32(mw, _MM_SHUFFLE(2, 3, 0, 1)));
 
-			mx = _mm_min_epi32(mx, my);
-			mz = _mm_min_epi32(mz, mw);
-			mx = _mm_min_epi32(mx, mz);
+			mx = _mm_min_epi32(_mm_min_epi32(mx, my), _mm_min_epi32(mz, mw));
 			ma = _mm_min_epi32(ma, _mm_shuffle_epi32(ma, _MM_SHUFFLE(1, 0, 3, 2)));
 			mx = _mm_min_epi32(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(1, 0, 3, 2)));
 
@@ -539,10 +763,52 @@ namespace Mode4 {
 			merrorBlock = _mm_add_epi32(merrorBlock, mx);
 
 			if (!(_mm_movemask_epi8(_mm_cmpgt_epi32(mwater, merrorBlock)) & 0xF))
-				break;
+				goto done;
 		}
 #endif
 
+		if (i < 16)
+		{
+#if defined(OPTION_AVX512)
+			__m128i mx = _mm_min_epi16(_mm512_castsi512_si128(wtx), _mm512_castsi512_si128(wtw));
+
+			__m128i mweight = _mm_or_si128(_mm512_castsi512_si128(wweights3), _mm512_castsi512_si128(wweights1));
+
+			mx = _mm_shuffle_epi8(mx, _mm512_castsi512_si128(wrot));
+
+			mweight = _mm_shuffle_epi8(mweight, _mm512_castsi512_si128(wrot));
+#elif defined(OPTION_AVX2)
+			__m128i mx = _mm_min_epi16(_mm256_castsi256_si128(vtx), _mm256_castsi256_si128(vtw));
+
+			__m128i mweight = _mm_or_si128(_mm256_castsi256_si128(vweights3), _mm256_castsi256_si128(vweights1));
+
+			mx = _mm_shuffle_epi8(mx, _mm256_castsi256_si128(vrot));
+
+			mweight = _mm_shuffle_epi8(mweight, _mm256_castsi256_si128(vrot));
+#else
+			__m128i mx = _mm_min_epi16(mtx, mtw);
+
+			__m128i mweight = _mm_or_si128(mweights3, mweights1);
+
+			mx = _mm_shuffle_epi8(mx, mrot);
+
+			mweight = _mm_shuffle_epi8(mweight, mrot);
+#endif
+
+			mx = _mm_min_epi16(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(1, 0, 3, 2)));
+
+			mweight = _mm_mullo_epi16(mweight, _mm_cvtsi32_si128(static_cast<int>(16 - i)));
+
+			mx = _mm_srli_epi16(mx, kDenoise);
+
+			mx = _mm_mullo_epi16(mx, mx);
+
+			mx = _mm_madd_epi16(mx, mweight);
+
+			merrorBlock = _mm_add_epi32(merrorBlock, mx);
+		}
+
+	done:
 		return _mm_cvtsi128_si32(merrorBlock);
 	}
 
@@ -578,7 +844,7 @@ namespace Mode4 {
 
 			const __m128i mweights3 = _mm_and_si128(mmask3, gWeightsAGRB);
 
-			error3 = ComputeSubsetTable(area, mweights3, state3, 4);
+			error3 = ComputeSubsetTable2(area, mweights3, state3);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{
@@ -629,7 +895,7 @@ namespace Mode4 {
 
 			const __m128i mweights1 = _mm_andnot_si128(mmask3, gWeightsAGRB);
 
-			error1 = ComputeSubsetTable(area, mweights1, state1, 8);
+			error1 = ComputeSubsetTable3(area, mweights1, state1);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{
@@ -695,7 +961,7 @@ namespace Mode4 {
 
 			const __m128i mweights3 = _mm_and_si128(mmask3, gWeightsAGRB);
 
-			error3 = ComputeSubsetTable(area, mweights3, state3, 8);
+			error3 = ComputeSubsetTable3(area, mweights3, state3);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{
@@ -736,7 +1002,7 @@ namespace Mode4 {
 
 			const __m128i mweights1 = _mm_andnot_si128(mmask3, gWeightsAGRB);
 
-			error1 = ComputeSubsetTable(area, mweights1, state1, 4);
+			error1 = ComputeSubsetTable2(area, mweights1, state1);
 
 			for (size_t i = 0, n = area.Count; i < n; i++)
 			{
@@ -971,7 +1237,7 @@ namespace Mode4 {
 
 					int cG = chG.Err[iG].Color;
 
-					if constexpr ((rotation != 0) && (rotation != 2))
+					if constexpr ((rotation == 1) || (rotation == 3))
 					{
 						__m128i mc = _mm_setzero_si128();
 						mc = _mm_insert_epi16(mc, cA, 0);
@@ -1000,7 +1266,7 @@ namespace Mode4 {
 
 						int cR = chR.Err[iR].Color;
 
-						if constexpr ((rotation != 0) && (rotation != 1))
+						if constexpr ((rotation == 2) || (rotation == 3))
 						{
 							int ear = memAR[iR];
 							if (ear < 0)
@@ -1026,7 +1292,7 @@ namespace Mode4 {
 							}
 						}
 
-						if constexpr ((rotation != 2) && (rotation != 1))
+						if constexpr ((rotation == 0) || (rotation == 3))
 						{
 							__m128i mc = _mm_setzero_si128();
 							mc = _mm_insert_epi16(mc, cA, 0);
@@ -1086,7 +1352,7 @@ namespace Mode4 {
 							mc = _mm_shuffle_epi8(mc, mrot);
 							mc = _mm_cvtepu8_epi16(mc);
 
-							if constexpr ((rotation != 1) && (rotation != 3))
+							if constexpr ((rotation == 0) || (rotation == 2))
 							{
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError23[rotation]++;
@@ -1217,7 +1483,7 @@ namespace Mode4 {
 
 					int cG = chG.Err[iG].Color;
 
-					if constexpr ((rotation != 0) && (rotation != 2))
+					if constexpr ((rotation == 1) || (rotation == 3))
 					{
 						__m128i mc = _mm_setzero_si128();
 						mc = _mm_insert_epi16(mc, cA, 0);
@@ -1246,7 +1512,7 @@ namespace Mode4 {
 
 						int cR = chR.Err[iR].Color;
 
-						if constexpr ((rotation != 0) && (rotation != 1))
+						if constexpr ((rotation == 2) || (rotation == 3))
 						{
 							int ear = memAR[iR];
 							if (ear < 0)
@@ -1272,7 +1538,7 @@ namespace Mode4 {
 							}
 						}
 
-						if constexpr ((rotation != 2) && (rotation != 1))
+						if constexpr ((rotation == 0) || (rotation == 3))
 						{
 							__m128i mc = _mm_setzero_si128();
 							mc = _mm_insert_epi16(mc, cA, 0);
@@ -1332,7 +1598,7 @@ namespace Mode4 {
 							mc = _mm_shuffle_epi8(mc, mrot);
 							mc = _mm_cvtepu8_epi16(mc);
 
-							if constexpr ((rotation != 1) && (rotation != 3))
+							if constexpr ((rotation == 0) || (rotation == 2))
 							{
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError32[rotation]++;

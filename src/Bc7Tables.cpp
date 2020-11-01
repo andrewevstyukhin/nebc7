@@ -51,7 +51,7 @@ alignas(32) __m128i gTableInterpolate2_U8[4 >> 1];
 alignas(64) __m128i gTableInterpolate3_U8[8 >> 1];
 alignas(32) __m128i gTableInterpolate4_U8[16 >> 1];
 
-alignas(32) __m128i gTableInterpolate2GR_U8[4 >> (2 - 1)];
+alignas(32) __m128i gTableInterpolate2GR_U8[4 >> 2];
 alignas(32) __m128i gTableInterpolate3GR_U8[8 >> 2];
 alignas(32) __m128i gTableInterpolate4GR_U8[16 >> 2];
 
@@ -76,7 +76,6 @@ void InitInterpolation() noexcept
 		m1 = _mm_shuffle_epi32(m1, _MM_SHUFFLE(2, 0, 2, 0));
 
 		gTableInterpolate2GR_U8[0] = _mm_unpacklo_epi64(m0, m1);
-		gTableInterpolate2GR_U8[1] = _mm_unpacklo_epi64(m0, m1); // copy
 	}
 
 	{

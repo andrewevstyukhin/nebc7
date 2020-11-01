@@ -619,10 +619,27 @@ NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) no
 	NodeShort* A = input;
 	NodeShort* B = work;
 
-	uint32_t any_error = 0;
-	for (size_t i = 0; i < N; i++)
+	uint32_t any_error;
 	{
-		any_error |= A[i].ColorError;
+		__m128i many = _mm_setzero_si128();
+
+		const __m128i* p = (const __m128i*)A;
+		for (size_t i = 3; i < N; i += 4)
+		{
+			__m128i mv = _mm_loadu_si128(p); p++;
+
+			many = _mm_or_si128(many, mv);
+		}
+
+		many = _mm_or_si128(many, _mm_shuffle_epi32(many, _MM_SHUFFLE(2, 3, 0, 1)));
+		many = _mm_or_si128(many, _mm_shuffle_epi32(many, _MM_SHUFFLE(0, 1, 2, 3)));
+
+		any_error = static_cast<uint32_t>(_mm_cvtsi128_si32(many));
+
+		for (size_t i = N & ~size_t(3); i < N; i++)
+		{
+			any_error |= A[i].ColorError;
+		}
 	}
 
 	for (size_t shift = 16; shift < 32; shift += radix)
@@ -662,46 +679,397 @@ NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) no
 	return A;
 }
 
-NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulations& state, const int M) noexcept
+template<int M>
+INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulations& state) noexcept
 {
 	const int denoiseStep = (area.IsOpaque ? kDenoiseStep * kColor : kDenoiseStep * (kColor + kAlpha));
 
-	int good = (1 << M) - 1;
+	int good = 1;
 	{
-		const int m = M >> 1;
+		constexpr int m = M >> 1;
 
 		for (int i = 1; i < m; i++)
 		{
-			good ^= int(state.Values_I16[i - 1] == state.Values_I16[i]) << i;
+			good |= int(state.Values_I16[i - 1] != state.Values_I16[i]) << i;
 		}
 
-		for (int i = M - 2; i >= m; i--)
+		for (int i = m; i < M - 1; i++)
 		{
-			good ^= int(state.Values_I16[i + 1] == state.Values_I16[i]) << i;
+			good |= int(state.Values_I16[i] != state.Values_I16[i + 1]) << i;
 		}
+
+		good |= int(state.Values_I16[0] != state.Values_I16[M - 1]) << (M - 1);
 
 		good &= ~(int(state.Values_I16[m - 1] == state.Values_I16[m]) << m);
-
-		good ^= int(state.Values_I16[0] == state.Values_I16[M - 1]) << (M - 1);
 	}
 
 	int errorBlock = 0;
 
 	for (size_t i = 0, n = area.Active; i < n; i++)
 	{
-		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
-		__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
-		__m128i mmask = _mm_unpackhi_epi64(mpacked, mpacked);
+#if defined(OPTION_AVX512)
+		alignas(64) uint64_t errors[M];
 
-		int positions[16];
+		const __m512i wweights = _mm512_broadcastq_epi64(mweights);
+		const __m512i wsign = _mm512_set1_epi16(-0x8000);
+		const __mmask16 wkxy = __mmask16(0xAAAA);
+
+		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
+		__m512i wpixel = _mm512_broadcastq_epi64(mpacked);
+
+		__m256i vbottom;
+		if constexpr (M == 16)
+		{
+			__m512i wx = _mm512_load_epi64((const __m512i*)state.Values_I16);
+			__m512i wz = _mm512_load_epi64((const __m512i*)&state.Values_I16[8]);
+
+			wx = _mm512_sub_epi16(wx, wpixel);
+			wz = _mm512_sub_epi16(wz, wpixel);
+
+			__m512i wy = _mm512_abs_epi16(wx);
+			__m512i ww = _mm512_abs_epi16(wz);
+
+			wy = _mm512_srli_epi16(wy, kDenoise);
+			ww = _mm512_srli_epi16(ww, kDenoise);
+
+			wx = _mm512_mullo_epi16(wx, wx);
+			wy = _mm512_mullo_epi16(wy, wy);
+			wz = _mm512_mullo_epi16(wz, wz);
+			ww = _mm512_mullo_epi16(ww, ww);
+
+			wx = _mm512_xor_epi32(wx, wsign);
+			wz = _mm512_xor_epi32(wz, wsign);
+
+			wy = _mm512_madd_epi16(wy, wweights);
+			ww = _mm512_madd_epi16(ww, wweights);
+			wx = _mm512_madd_epi16(wx, wweights);
+			wz = _mm512_madd_epi16(wz, wweights);
+
+			wy = _mm512_add_epi32(wy, _mm512_shuffle_epi32(wy, _MM_SHUFFLE(2, 3, 0, 1)));
+			ww = _mm512_add_epi32(ww, _mm512_shuffle_epi32(ww, _MM_SHUFFLE(2, 3, 0, 1)));
+			wx = _mm512_add_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(2, 3, 0, 1)));
+			wz = _mm512_add_epi32(wz, _mm512_shuffle_epi32(wz, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			wx = _mm512_mask_blend_epi32(wkxy, wx, wy);
+			wz = _mm512_mask_blend_epi32(wkxy, wz, ww);
+
+			__m512i wbottom = _mm512_min_epi64(wx, wz);
+			vbottom = _mm256_min_epi64(_mm512_castsi512_si256(wbottom), _mm512_extracti32x8_epi32(wbottom, 1));
+
+			_mm512_store_epi32((__m512i*)errors, wx);
+			_mm512_store_epi32((__m512i*)&errors[8], wz);
+		}
+		else if constexpr (M == 8)
+		{
+			__m512i wx = _mm512_load_epi64((const __m512i*)state.Values_I16);
+
+			wx = _mm512_sub_epi16(wx, wpixel);
+
+			__m512i wy = _mm512_abs_epi16(wx);
+
+			wy = _mm512_srli_epi16(wy, kDenoise);
+
+			wx = _mm512_mullo_epi16(wx, wx);
+			wy = _mm512_mullo_epi16(wy, wy);
+
+			wx = _mm512_xor_epi32(wx, wsign);
+
+			wy = _mm512_madd_epi16(wy, wweights);
+			wx = _mm512_madd_epi16(wx, wweights);
+
+			wy = _mm512_add_epi32(wy, _mm512_shuffle_epi32(wy, _MM_SHUFFLE(2, 3, 0, 1)));
+			wx = _mm512_add_epi32(wx, _mm512_shuffle_epi32(wx, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			wx = _mm512_mask_blend_epi32(wkxy, wx, wy);
+
+			vbottom = _mm256_min_epi64(_mm512_castsi512_si256(wx), _mm512_extracti32x8_epi32(wx, 1));
+
+			_mm512_store_epi32((__m512i*)errors, wx);
+		}
+		else
+		{
+			__m256i vx = _mm256_load_si256((const __m256i*)state.Values_I16);
+
+			vx = _mm256_sub_epi16(vx, _mm512_castsi512_si256(wpixel));
+
+			__m256i vy = _mm256_abs_epi16(vx);
+
+			vy = _mm256_srli_epi16(vy, kDenoise);
+
+			vx = _mm256_mullo_epi16(vx, vx);
+			vy = _mm256_mullo_epi16(vy, vy);
+
+			vx = _mm256_xor_si256(vx, _mm512_castsi512_si256(wsign));
+
+			vy = _mm256_madd_epi16(vy, _mm512_castsi512_si256(wweights));
+			vx = _mm256_madd_epi16(vx, _mm512_castsi512_si256(wweights));
+
+			vy = _mm256_add_epi32(vy, _mm256_shuffle_epi32(vy, _MM_SHUFFLE(2, 3, 0, 1)));
+			vx = _mm256_add_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			vx = _mm256_blend_epi32(vx, vy, 0xAA);
+
+			vbottom = vx;
+
+			_mm256_store_si256((__m256i*)errors, vx);
+		}
+
+		__m128i mbottom = _mm_min_epi64(_mm256_castsi256_si128(vbottom), _mm256_extracti128_si256(vbottom, 1));
+		mbottom = _mm_min_epi64(mbottom, _mm_shuffle_epi32(mbottom, _MM_SHUFFLE(1, 0, 3, 2)));
+
+		const __m512i wflags = _mm512_set_epi32(0, 1 << 7, 0, 1 << 6, 0, 1 << 5, 0, 1 << 4, 0, 1 << 3, 0, 1 << 2, 0, 1 << 1, 0, 1 << 0);
+
+		uint64_t bottom = _mm_cvtsi128_si64(mbottom);
+
+		__m256i vp0;
+		if constexpr (M == 4)
+		{
+			vbottom = _mm256_broadcastq_epi64(mbottom);
+
+			vp0 = _mm256_load_si256((const __m256i*)errors);
+
+			vp0 = _mm256_cmpeq_epi64(vp0, vbottom);
+
+			vp0 = _mm256_and_si256(vp0, _mm512_castsi512_si256(wflags));
+		}
+		else
+		{
+			__m512i wbottom = _mm512_broadcastq_epi64(mbottom);
+
+			__m512i wp0 = _mm512_load_epi64((const __m512i*)errors);
+			if constexpr (M == 8)
+			{
+				wp0 = _mm512_maskz_mov_epi64(_mm512_cmp_epi64_mask(wp0, wbottom, _MM_CMPINT_EQ), wflags);
+			}
+			else if constexpr (M == 16)
+			{
+				__m512i wp1 = _mm512_load_epi64((const __m512i*)&errors[8]);
+
+				wp0 = _mm512_maskz_mov_epi64(_mm512_cmp_epi64_mask(wp0, wbottom, _MM_CMPINT_EQ), wflags);
+				wp1 = _mm512_maskz_mov_epi64(_mm512_cmp_epi64_mask(wp1, wbottom, _MM_CMPINT_EQ), _mm512_slli_epi16(wflags, 8));
+
+				wp0 = _mm512_or_epi64(wp0, wp1);
+			}
+
+			vp0 = _mm256_or_si256(_mm512_castsi512_si256(wp0), _mm512_extracti32x8_epi32(wp0, 1));
+		}
+
+		__m128i mway = _mm_or_si128(_mm256_castsi256_si128(vp0), _mm256_extracti128_si256(vp0, 1));
+#elif defined(OPTION_AVX2)
+		alignas(32) uint64_t errors[M];
+
+		const __m256i vweights = _mm256_broadcastq_epi64(mweights);
+		const __m256i vsign = _mm256_set1_epi16(-0x8000);
+
+		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
+		__m256i vpixel = _mm256_broadcastq_epi64(mpacked);
+
+		__m256i vbottom = _mm256_set1_epi32(kBlockMaximalAlphaError + kBlockMaximalColorError);
+
+		if constexpr (M == 16)
+		{
+			__m256i vx = _mm256_load_si256((const __m256i*)state.Values_I16);
+			__m256i vz = _mm256_load_si256((const __m256i*)&state.Values_I16[4]);
+			__m256i vxx = _mm256_load_si256((const __m256i*)&state.Values_I16[8]);
+			__m256i vzz = _mm256_load_si256((const __m256i*)&state.Values_I16[12]);
+
+			vx = _mm256_sub_epi16(vx, vpixel);
+			vz = _mm256_sub_epi16(vz, vpixel);
+			vxx = _mm256_sub_epi16(vxx, vpixel);
+			vzz = _mm256_sub_epi16(vzz, vpixel);
+
+			__m256i vy = _mm256_abs_epi16(vx);
+			__m256i vw = _mm256_abs_epi16(vz);
+			__m256i vyy = _mm256_abs_epi16(vxx);
+			__m256i vww = _mm256_abs_epi16(vzz);
+
+			vy = _mm256_srli_epi16(vy, kDenoise);
+			vw = _mm256_srli_epi16(vw, kDenoise);
+			vyy = _mm256_srli_epi16(vyy, kDenoise);
+			vww = _mm256_srli_epi16(vww, kDenoise);
+
+			vx = _mm256_mullo_epi16(vx, vx);
+			vy = _mm256_mullo_epi16(vy, vy);
+			vz = _mm256_mullo_epi16(vz, vz);
+			vw = _mm256_mullo_epi16(vw, vw);
+			vxx = _mm256_mullo_epi16(vxx, vxx);
+			vyy = _mm256_mullo_epi16(vyy, vyy);
+			vzz = _mm256_mullo_epi16(vzz, vzz);
+			vww = _mm256_mullo_epi16(vww, vww);
+
+			vx = _mm256_xor_si256(vx, vsign);
+			vz = _mm256_xor_si256(vz, vsign);
+			vxx = _mm256_xor_si256(vxx, vsign);
+			vzz = _mm256_xor_si256(vzz, vsign);
+
+			vy = _mm256_madd_epi16(vy, vweights);
+			vw = _mm256_madd_epi16(vw, vweights);
+			vx = _mm256_madd_epi16(vx, vweights);
+			vz = _mm256_madd_epi16(vz, vweights);
+			vyy = _mm256_madd_epi16(vyy, vweights);
+			vww = _mm256_madd_epi16(vww, vweights);
+			vxx = _mm256_madd_epi16(vxx, vweights);
+			vzz = _mm256_madd_epi16(vzz, vweights);
+
+			vy = _mm256_add_epi32(vy, _mm256_shuffle_epi32(vy, _MM_SHUFFLE(2, 3, 0, 1)));
+			vw = _mm256_add_epi32(vw, _mm256_shuffle_epi32(vw, _MM_SHUFFLE(2, 3, 0, 1)));
+			vx = _mm256_add_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+			vz = _mm256_add_epi32(vz, _mm256_shuffle_epi32(vz, _MM_SHUFFLE(2, 3, 0, 1)));
+			vyy = _mm256_add_epi32(vyy, _mm256_shuffle_epi32(vyy, _MM_SHUFFLE(2, 3, 0, 1)));
+			vww = _mm256_add_epi32(vww, _mm256_shuffle_epi32(vww, _MM_SHUFFLE(2, 3, 0, 1)));
+			vxx = _mm256_add_epi32(vxx, _mm256_shuffle_epi32(vxx, _MM_SHUFFLE(2, 3, 0, 1)));
+			vzz = _mm256_add_epi32(vzz, _mm256_shuffle_epi32(vzz, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			vx = _mm256_blend_epi32(vx, vy, 0xAA);
+			vz = _mm256_blend_epi32(vz, vw, 0xAA);
+			vxx = _mm256_blend_epi32(vxx, vyy, 0xAA);
+			vzz = _mm256_blend_epi32(vzz, vww, 0xAA);
+
+			vbottom = _mm256_blendv_epi8(vbottom, vx, _mm256_cmpgt_epi64(vbottom, vx));
+			vbottom = _mm256_blendv_epi8(vbottom, vz, _mm256_cmpgt_epi64(vbottom, vz));
+			vbottom = _mm256_blendv_epi8(vbottom, vxx, _mm256_cmpgt_epi64(vbottom, vxx));
+			vbottom = _mm256_blendv_epi8(vbottom, vzz, _mm256_cmpgt_epi64(vbottom, vzz));
+
+			_mm256_store_si256((__m256i*)errors, vx);
+			_mm256_store_si256((__m256i*)&errors[4], vz);
+			_mm256_store_si256((__m256i*)&errors[8], vxx);
+			_mm256_store_si256((__m256i*)&errors[12], vzz);
+		}
+		else if constexpr (M == 8)
+		{
+			__m256i vx = _mm256_load_si256((const __m256i*)state.Values_I16);
+			__m256i vz = _mm256_load_si256((const __m256i*)&state.Values_I16[4]);
+
+			vx = _mm256_sub_epi16(vx, vpixel);
+			vz = _mm256_sub_epi16(vz, vpixel);
+
+			__m256i vy = _mm256_abs_epi16(vx);
+			__m256i vw = _mm256_abs_epi16(vz);
+
+			vy = _mm256_srli_epi16(vy, kDenoise);
+			vw = _mm256_srli_epi16(vw, kDenoise);
+
+			vx = _mm256_mullo_epi16(vx, vx);
+			vy = _mm256_mullo_epi16(vy, vy);
+			vz = _mm256_mullo_epi16(vz, vz);
+			vw = _mm256_mullo_epi16(vw, vw);
+
+			vx = _mm256_xor_si256(vx, vsign);
+			vz = _mm256_xor_si256(vz, vsign);
+
+			vy = _mm256_madd_epi16(vy, vweights);
+			vw = _mm256_madd_epi16(vw, vweights);
+			vx = _mm256_madd_epi16(vx, vweights);
+			vz = _mm256_madd_epi16(vz, vweights);
+
+			vy = _mm256_add_epi32(vy, _mm256_shuffle_epi32(vy, _MM_SHUFFLE(2, 3, 0, 1)));
+			vw = _mm256_add_epi32(vw, _mm256_shuffle_epi32(vw, _MM_SHUFFLE(2, 3, 0, 1)));
+			vx = _mm256_add_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+			vz = _mm256_add_epi32(vz, _mm256_shuffle_epi32(vz, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			vx = _mm256_blend_epi32(vx, vy, 0xAA);
+			vz = _mm256_blend_epi32(vz, vw, 0xAA);
+
+			vbottom = _mm256_blendv_epi8(vbottom, vx, _mm256_cmpgt_epi64(vbottom, vx));
+			vbottom = _mm256_blendv_epi8(vbottom, vz, _mm256_cmpgt_epi64(vbottom, vz));
+
+			_mm256_store_si256((__m256i*)errors, vx);
+			_mm256_store_si256((__m256i*)&errors[4], vz);
+		}
+		else
+		{
+			__m256i vx = _mm256_load_si256((const __m256i*)state.Values_I16);
+
+			vx = _mm256_sub_epi16(vx, vpixel);
+
+			__m256i vy = _mm256_abs_epi16(vx);
+
+			vy = _mm256_srli_epi16(vy, kDenoise);
+
+			vx = _mm256_mullo_epi16(vx, vx);
+			vy = _mm256_mullo_epi16(vy, vy);
+
+			vx = _mm256_xor_si256(vx, vsign);
+
+			vy = _mm256_madd_epi16(vy, vweights);
+			vx = _mm256_madd_epi16(vx, vweights);
+
+			vy = _mm256_add_epi32(vy, _mm256_shuffle_epi32(vy, _MM_SHUFFLE(2, 3, 0, 1)));
+			vx = _mm256_add_epi32(vx, _mm256_shuffle_epi32(vx, _MM_SHUFFLE(2, 3, 0, 1)));
+
+			vx = _mm256_blend_epi32(vx, vy, 0xAA);
+
+			vbottom = _mm256_blendv_epi8(vbottom, vx, _mm256_cmpgt_epi64(vbottom, vx));
+
+			_mm256_store_si256((__m256i*)errors, vx);
+		}
+
+		__m128i mbottom01 = _mm256_castsi256_si128(vbottom);
+		__m128i mbottom23 = _mm256_extracti128_si256(vbottom, 1);
+
+		__m128i mbottom = _mm_blendv_epi8(mbottom01, mbottom23, _mm_cmpgt_epi64(mbottom01, mbottom23));
+
+		__m128i mbottom2 = _mm_shuffle_epi32(mbottom, _MM_SHUFFLE(1, 0, 3, 2));
+		mbottom = _mm_blendv_epi8(mbottom, mbottom2, _mm_cmpgt_epi64(mbottom, mbottom2));
+
+		const __m256i vflags = _mm256_set_epi32(0, 1 << 3, 0, 1 << 2, 0, 1 << 1, 0, 1 << 0);
+
+		uint64_t bottom = _mm_cvtsi128_si64(mbottom);
+		vbottom = _mm256_broadcastq_epi64(mbottom);
+
+		__m256i vp0 = _mm256_load_si256((const __m256i*)errors);
+		if constexpr (M == 4)
+		{
+			vp0 = _mm256_cmpeq_epi64(vp0, vbottom);
+
+			vp0 = _mm256_and_si256(vp0, vflags);
+		}
+		else if constexpr (M == 8)
+		{
+			__m256i vp1 = _mm256_load_si256((const __m256i*)&errors[4]);
+
+			vp0 = _mm256_cmpeq_epi64(vp0, vbottom);
+			vp1 = _mm256_cmpeq_epi64(vp1, vbottom);
+
+			vp0 = _mm256_and_si256(vp0, vflags);
+			vp1 = _mm256_and_si256(vp1, _mm256_slli_epi16(vflags, 4));
+
+			vp0 = _mm256_or_si256(vp0, vp1);
+		}
+		else if constexpr (M == 16)
+		{
+			__m256i vp1 = _mm256_load_si256((const __m256i*)&errors[4]);
+			__m256i vp2 = _mm256_load_si256((const __m256i*)&errors[8]);
+			__m256i vp3 = _mm256_load_si256((const __m256i*)&errors[12]);
+
+			vp0 = _mm256_cmpeq_epi64(vp0, vbottom);
+			vp1 = _mm256_cmpeq_epi64(vp1, vbottom);
+			vp2 = _mm256_cmpeq_epi64(vp2, vbottom);
+			vp3 = _mm256_cmpeq_epi64(vp3, vbottom);
+
+			vp0 = _mm256_and_si256(vp0, vflags);
+			vp1 = _mm256_and_si256(vp1, _mm256_slli_epi16(vflags, 4));
+			vp2 = _mm256_and_si256(vp2, _mm256_slli_epi16(vflags, 8));
+			vp3 = _mm256_and_si256(vp3, _mm256_slli_epi16(vflags, 12));
+
+			vp0 = _mm256_or_si256(_mm256_or_si256(vp0, vp1), _mm256_or_si256(vp2, vp3));
+		}
+
+		__m128i mway = _mm_or_si128(_mm256_castsi256_si128(vp0), _mm256_extracti128_si256(vp0, 1));
+#else
+		alignas(16) int positions[M];
 		int position = 0;
 
-		int bottom = kBlockMaximalAlphaError + kBlockMaximalColorError;
-		int bottomFull = 0;
+		const __m128i msign = _mm_set1_epi16(-0x8000);
 
-		for (int j = 0; j < M; j++)
+		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
+		__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
+
+		uint64_t bottom = (kBlockMaximalAlphaError + kBlockMaximalColorError) * ((1uLL << 32) + 1uLL);
+
+		for (int j = 0; j < M; j += 2)
 		{
-			__m128i mx = _mm_loadl_epi64((const __m128i*)&state.Values_I16[j]);
+			__m128i mx = _mm_load_si128((const __m128i*)&state.Values_I16[j]);
 
 			mx = _mm_sub_epi16(mx, mpixel);
 
@@ -712,52 +1080,104 @@ NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modu
 			mx = _mm_mullo_epi16(mx, mx);
 			my = _mm_mullo_epi16(my, my);
 
-			mx = _mm_and_si128(mx, mmask);
-			my = _mm_and_si128(my, mmask);
+			mx = _mm_xor_si128(mx, msign);
 
-			mx = _mm_xor_si128(mx, _mm_set1_epi16(-0x8000));
-
-			mx = _mm_madd_epi16(mx, mweights);
 			my = _mm_madd_epi16(my, mweights);
+			mx = _mm_madd_epi16(mx, mweights);
 
-			mx = _mm_add_epi32(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(2, 3, 0, 1)));
-			my = _mm_add_epi32(my, _mm_shuffle_epi32(my, _MM_SHUFFLE(2, 3, 0, 1)));
+			mx = _mm_hadd_epi32(mx, my);
 
-			int error = (int)_mm_cvtsi128_si64(my);
-			int errorFull = (int)_mm_cvtsi128_si64(mx);
+			mx = _mm_shuffle_epi32(mx, _MM_SHUFFLE(3, 1, 2, 0));
 
-			if ((bottom > error) || ((bottom == error) && (bottomFull > errorFull)))
+			const uint64_t error0 = static_cast<uint64_t>(_mm_cvtsi128_si64(mx));
+			const uint64_t error1 = static_cast<uint64_t>(_mm_cvtsi128_si64(_mm_shuffle_epi32(mx, _MM_SHUFFLE(1, 0, 3, 2))));
+
+			const uint64_t error01 = (error0 < error1) ? error0 : error1;
+
+			if (bottom > error01)
 			{
-				bottom = error;
-				bottomFull = errorFull;
+				bottom = error01;
 				position = j;
 			}
 
-			positions[j] = ((bottom ^ error) | (bottomFull ^ errorFull)) ? -1 : position;
+			positions[j + 0] = (bottom != error0) ? -1 : position;
+			positions[j + 1] = (bottom != error1) ? -1 : position;
 		}
 
-		errorBlock += bottom;
+		const __m128i mp = _mm_shuffle_epi32(_mm_cvtsi32_si128(position), 0);
+		const __m128i mflags = _mm_set_epi32(1 << 3, 1 << 2, 1 << 1, 1 << 0);
 
-		int way = 0;
-
-		for (int j = 0; j < M; j++)
+		__m128i mp0 = _mm_load_si128((const __m128i*)&positions[0]);
+		if constexpr (M == 4)
 		{
-			way |= int(positions[j] == position) << j;
+			mp0 = _mm_cmpeq_epi32(mp0, mp);
+
+			mp0 = _mm_and_si128(mp0, mflags);
 		}
-
-		way &= good;
-
-		if ((bottom << (kDenoise + kDenoise)) <= denoiseStep)
+		else if constexpr (M == 8)
 		{
-			way &= ~(way - 1);
+			__m128i mp1 = _mm_load_si128((const __m128i*)&positions[4]);
+
+			mp0 = _mm_cmpeq_epi32(mp0, mp);
+			mp1 = _mm_cmpeq_epi32(mp1, mp);
+
+			mp0 = _mm_and_si128(mp0, mflags);
+			mp1 = _mm_and_si128(mp1, _mm_slli_epi16(mflags, 4));
+
+			mp0 = _mm_or_si128(mp0, mp1);
+		}
+		else if constexpr (M == 16)
+		{
+			__m128i mp1 = _mm_load_si128((const __m128i*)&positions[4]);
+			__m128i mp2 = _mm_load_si128((const __m128i*)&positions[8]);
+			__m128i mp3 = _mm_load_si128((const __m128i*)&positions[12]);
+
+			mp0 = _mm_cmpeq_epi32(mp0, mp);
+			mp1 = _mm_cmpeq_epi32(mp1, mp);
+			mp2 = _mm_cmpeq_epi32(mp2, mp);
+			mp3 = _mm_cmpeq_epi32(mp3, mp);
+
+			mp0 = _mm_and_si128(mp0, mflags);
+			mp1 = _mm_and_si128(mp1, _mm_slli_epi16(mflags, 4));
+			mp2 = _mm_and_si128(mp2, _mm_slli_epi16(mflags, 8));
+			mp3 = _mm_and_si128(mp3, _mm_slli_epi16(mflags, 12));
+
+			mp0 = _mm_or_si128(_mm_or_si128(mp0, mp1), _mm_or_si128(mp2, mp3));
 		}
 
-		way |= (1 << M);
+		__m128i mway = _mm_or_si128(mp0, _mm_shuffle_epi32(mp0, _MM_SHUFFLE(2, 3, 0, 1)));
+#endif
 
-		state.Ways[i] = (way & (way - 1) & good) ? way : 0;
+		bottom >>= 32;
 
-		int k = 0;
-		while ((way & (1 << k)) == 0) k++;
+		mway = _mm_or_si128(mway, _mm_shuffle_epi32(mway, _MM_SHUFFLE(1, 0, 3, 2)));
+
+		errorBlock += static_cast<int>(bottom);
+
+		int way = _mm_cvtsi128_si32(mway) & good;
+
+		int k = way & -way;
+		way = (static_cast<int>(bottom << (kDenoise + kDenoise)) <= denoiseStep) ? k : way;
+
+		state.Ways[i] = (way != k) ? way | (1 << M) : 0;
+
+		k--;
+#if defined(OPTION_AVX2)
+		k = _mm_popcnt_u32(static_cast<uint32_t>(k));
+#else
+		k += k & 0x5555;
+		k = (k & (0xCCCC << 1)) + ((k & (0xCCCC >> 1)) << 2);
+		if constexpr (M == 4)
+		{
+			k >>= 3;
+		}
+		else
+		{
+			k *= 0x1111;
+			k >>= 15;
+			k &= 0xF;
+		}
+#endif
 		state.Loops[i] = k;
 	}
 
@@ -765,78 +1185,44 @@ NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modu
 
 	if (area.Active < area.Count)
 	{
-		good = (1 << M) - 1;
-		{
-			const int m = M >> 1;
+		const int alpha0 = *(const uint16_t*)&state.Values_I16[0];
+		const int alpha1 = *(const uint16_t*)&state.Values_I16[M - 1];
 
-			for (int i = 1; i < m; i++)
-			{
-				good ^= int(*(const uint16_t*)&state.Values_I16[i - 1] == *(const uint16_t*)&state.Values_I16[i]) << i;
-			}
+		int bottom = (alpha1 < alpha0) ? alpha1 : alpha0;
 
-			for (int i = M - 2; i >= m; i--)
-			{
-				good ^= int(*(const uint16_t*)&state.Values_I16[i + 1] == *(const uint16_t*)&state.Values_I16[i]) << i;
-			}
+		const int index = (bottom != alpha0) ? M - 1 : 0;
 
-			good &= ~(int(*(const uint16_t*)&state.Values_I16[m - 1] == *(const uint16_t*)&state.Values_I16[m]) << m);
+		bottom >>= kDenoise;
 
-			good ^= int(*(const uint16_t*)&state.Values_I16[0] == *(const uint16_t*)&state.Values_I16[M - 1]) << (M - 1);
-		}
-
-		int positions[16];
-		int position = 0;
-
-		int bottom = kBlockMaximalAlphaError + kBlockMaximalColorError;
-		int bottomFull = 0;
-
-		for (int j = 0; j < M; j++)
-		{
-			int x = *(const uint16_t*)&state.Values_I16[j];
-
-			int y = x >> kDenoise;
-
-			int error = y * y;
-			int errorFull = x * x;
-
-			if ((bottom > error) || ((bottom == error) && (bottomFull > errorFull)))
-			{
-				bottom = error;
-				bottomFull = errorFull;
-				position = j;
-			}
-
-			positions[j] = ((bottom ^ error) | (bottomFull ^ errorFull)) ? -1 : position;
-		}
-
-		errorBlock += bottom * _mm_extract_epi16(mweights, 0) * int(area.Count - area.Active);
-
-		int way = 0;
-
-		for (int j = 0; j < M; j++)
-		{
-			way |= int(positions[j] == position) << j;
-		}
-
-		way &= good;
-
-		if ((bottom << (kDenoise + kDenoise)) <= denoiseStep)
-		{
-			way &= ~(way - 1);
-		}
-
-		way |= (1 << M);
-
-		int k = 0;
-		while ((way & (1 << k)) == 0) k++;
-
-		way = (way & (way - 1) & good) ? way : 0;
+		errorBlock += bottom * bottom * _mm_extract_epi16(mweights, 0) * int(area.Count - area.Active);
 
 		for (size_t i = area.Active, n = area.Count; i < n; i++)
 		{
-			state.Ways[i] = way;
+			state.Ways[i] = 0;
 
-			state.Loops[i] = k;
+			state.Loops[i] = index;
+		}
+	}
+
+	//
+
+	{
+		for (size_t i = area.Count; i < 16; i++)
+		{
+			state.Ways[i] = 0;
+		}
+
+		__m128i mx = _mm_load_si128((const __m128i*)state.Ways);
+		__m128i my = _mm_load_si128((const __m128i*)&state.Ways[4]);
+		__m128i mz = _mm_load_si128((const __m128i*)&state.Ways[8]);
+		__m128i mw = _mm_load_si128((const __m128i*)&state.Ways[12]);
+
+		mx = _mm_or_si128(_mm_or_si128(mx, my), _mm_or_si128(mz, mw));
+
+		if (_mm_movemask_epi8(_mm_cmpgt_epi32(mx, _mm_setzero_si128())) == 0)
+		{
+			memcpy(state.Best, state.Loops, sizeof(state.Best));
+			return errorBlock;
 		}
 	}
 
@@ -926,10 +1312,25 @@ NOTINLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modu
 				state.Loops[i] = k;
 			}
 
-			if (++i >= count)
+			if (++i >= static_cast<int>(area.Active))
 				return errorBlock;
 		}
 	}
+}
+
+NOTINLINED int ComputeSubsetTable2(const Area& area, const __m128i mweights, Modulations& state) noexcept
+{
+	return ComputeSubsetTable<4>(area, mweights, state);
+}
+
+NOTINLINED int ComputeSubsetTable3(const Area& area, const __m128i mweights, Modulations& state) noexcept
+{
+	return ComputeSubsetTable<8>(area, mweights, state);
+}
+
+int ComputeSubsetTable4(const Area& area, const __m128i mweights, Modulations& state) noexcept
+{
+	return ComputeSubsetTable<16>(area, mweights, state);
 }
 
 static void DecompressBlock(uint8_t input[16], Cell& output) noexcept
