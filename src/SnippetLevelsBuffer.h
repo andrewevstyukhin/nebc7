@@ -311,27 +311,27 @@ private:
 			}
 
 			wsum = _mm512_or_epi64(wsum, _mm512_cvtepi8_epi64(mtail));
+			{
+				__m128i mx = _mm_minpos_epu16(_mm512_castsi512_si128(wsum));
+				__m128i my = _mm_minpos_epu16(_mm512_extracti32x4_epi32(wsum, 1));
+				__m128i mz = _mm_minpos_epu16(_mm512_extracti32x4_epi32(wsum, 2));
+				__m128i mw = _mm_minpos_epu16(_mm512_extracti32x4_epi32(wsum, 3));
 
-			__m128i mx = _mm_minpos_epu16(_mm512_castsi512_si128(wsum));
-			__m128i my = _mm_minpos_epu16(_mm512_extracti32x4_epi32(wsum, 1));
-			__m128i mz = _mm_minpos_epu16(_mm512_extracti32x4_epi32(wsum, 2));
-			__m128i mw = _mm_minpos_epu16(_mm512_extracti32x4_epi32(wsum, 3));
+				my = _mm_or_si128(my, m8);
+				mz = _mm_or_si128(mz, m16);
+				mw = _mm_or_si128(mw, m24);
 
-			my = _mm_or_si128(my, m8);
-			mz = _mm_or_si128(mz, m16);
-			mw = _mm_or_si128(mw, m24);
+				mx = _mm_shufflelo_epi16(mx, _MM_SHUFFLE(2, 3, 0, 1));
+				my = _mm_shufflelo_epi16(my, _MM_SHUFFLE(2, 3, 0, 1));
+				mz = _mm_shufflelo_epi16(mz, _MM_SHUFFLE(2, 3, 0, 1));
+				mw = _mm_shufflelo_epi16(mw, _MM_SHUFFLE(2, 3, 0, 1));
 
-			mx = _mm_shufflelo_epi16(mx, _MM_SHUFFLE(2, 3, 0, 1));
-			my = _mm_shufflelo_epi16(my, _MM_SHUFFLE(2, 3, 0, 1));
-			mz = _mm_shufflelo_epi16(mz, _MM_SHUFFLE(2, 3, 0, 1));
-			mw = _mm_shufflelo_epi16(mw, _MM_SHUFFLE(2, 3, 0, 1));
+				mx = _mm_min_epu32(_mm_min_epu32(mx, my), _mm_min_epu32(mz, mw));
 
-			mx = _mm_min_epu32(_mm_min_epu32(mx, my), _mm_min_epu32(mz, mw));
+				mx = _mm_add_epi16(mx, _mm_cvtsi32_si128(c));
 
-			mx = _mm_add_epi16(mx, _mm_cvtsi32_si128(c));
-
-			mbest = _mm_shufflelo_epi16(mx, _MM_SHUFFLE(2, 3, 0, 1));
-
+				mbest = _mm_shufflelo_epi16(mx, _MM_SHUFFLE(2, 3, 0, 1));
+			}
 			wwater = _mm512_broadcastw_epi16(mbest);
 
 		next:
@@ -466,18 +466,18 @@ private:
 			}
 
 			vsum = _mm256_or_si256(vsum, _mm256_cvtepi16_epi64(mtail));
+			{
+				__m128i mx = _mm_minpos_epu16(_mm256_castsi256_si128(vsum));
+				__m128i my = _mm_minpos_epu16(_mm256_extracti128_si256(vsum, 1));
 
-			__m128i mx = _mm_minpos_epu16(_mm256_castsi256_si128(vsum));
-			__m128i my = _mm_minpos_epu16(_mm256_extracti128_si256(vsum, 1));
+				__m128i mmask = _mm_shufflelo_epi16(_mm_cmpeq_epi16(_mm_min_epu16(mx, my), mx), 0);
 
-			__m128i mmask = _mm_shufflelo_epi16(_mm_cmpeq_epi16(_mm_min_epu16(mx, my), mx), 0);
+				mbest = _mm_blendv_epi8(_mm_or_si128(my, m8), mx, mmask);
 
-			mbest = _mm_blendv_epi8(_mm_or_si128(my, m8), mx, mmask);
+				__m128i mc = _mm_shufflelo_epi16(_mm_cvtsi32_si128(c), _MM_SHUFFLE(3, 3, 0, 3));
 
-			__m128i mc = _mm_shufflelo_epi16(_mm_cvtsi32_si128(c), _MM_SHUFFLE(3, 3, 0, 3));
-
-			mbest = _mm_add_epi16(mbest, mc);
-
+				mbest = _mm_add_epi16(mbest, mc);
+			}
 			vwater = _mm256_xor_si256(_mm256_broadcastw_epi16(mbest), vsign);
 
 		next:
@@ -612,22 +612,23 @@ private:
 
 #if defined(OPTION_SLOWPOKE)
 			msum = _mm_xor_si128(msum, msign);
-
-			const __m128i mindex = _mm_set_epi16(7, 6, 5, 4, 3, 2, 1, 0);
-			__m128i mx = _mm_min_epi32(_mm_unpacklo_epi16(mindex, msum), _mm_unpackhi_epi16(mindex, msum));
-			mx = _mm_min_epi32(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(2, 3, 0, 1)));
-			mx = _mm_min_epi32(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(0, 1, 2, 3)));
-
-			mbest = _mm_xor_si128(_mm_shufflelo_epi16(mx, _MM_SHUFFLE(2, 3, 0, 1)), _mm_cvtepu16_epi32(msign));
+			{
+				const __m128i mindex = _mm_set_epi16(7, 6, 5, 4, 3, 2, 1, 0);
+				__m128i mx = _mm_min_epi32(_mm_unpacklo_epi16(mindex, msum), _mm_unpackhi_epi16(mindex, msum));
+				mx = _mm_min_epi32(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(2, 3, 0, 1)));
+				mx = _mm_min_epi32(mx, _mm_shuffle_epi32(mx, _MM_SHUFFLE(0, 1, 2, 3)));
+				mbest = _mm_xor_si128(_mm_shufflelo_epi16(mx, _MM_SHUFFLE(2, 3, 0, 1)), _mm_cvtepu16_epi32(msign));
+			}
 #else
 			mbest = _mm_minpos_epu16(msum);
 #endif
+			{
+				__m128i mc = _mm_shufflelo_epi16(_mm_cvtsi32_si128(c), _MM_SHUFFLE(3, 3, 0, 3));
 
-			__m128i mc = _mm_shufflelo_epi16(_mm_cvtsi32_si128(c), _MM_SHUFFLE(3, 3, 0, 3));
+				mbest = _mm_add_epi16(mbest, mc);
 
-			mbest = _mm_add_epi16(mbest, mc);
-
-			mwater = _mm_xor_si128(_mm_shuffle_epi32(_mm_shufflelo_epi16(mbest, 0), 0), msign);
+				mwater = _mm_xor_si128(_mm_shuffle_epi32(_mm_shufflelo_epi16(mbest, 0), 0), msign);
+			}
 
 		next:
 			c += 8;
