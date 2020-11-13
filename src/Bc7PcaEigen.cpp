@@ -19,8 +19,6 @@ static ALWAYS_INLINED __m128 FMS_ps(__m128 a, __m128 b, __m128 c)
 #endif
 }
 
-alignas(16) static const __m128 g_sign = _mm_set1_ps(-0.f);
-
 alignas(16) static float K4[4], InvK4[4];
 
 template<int C>
@@ -85,6 +83,7 @@ static INLINED int PrincipalComponentAnalysis(const Area& area)
 
 	const __m128 mscale = _mm_load_ps(InvK4);
 	const __m128 mshift = _mm_set1_ps(1.1f);
+	const __m128 msign = _mm_set1_ps(-0.f);
 
 	msum = _mm_setzero_si128();
 
@@ -110,7 +109,7 @@ static INLINED int PrincipalComponentAnalysis(const Area& area)
 
 		__m128 me = _mm_mul_ps(_mm_sub_ps(_mm_mul_ps(mlambda, mu), mx), mscale);
 
-		me = _mm_andnot_ps(g_sign, me);
+		me = _mm_andnot_ps(msign, me);
 		me = _mm_sub_ps(me, mshift);
 		me = _mm_max_ps(me, _mm_setzero_ps());
 
