@@ -27,7 +27,12 @@ BlockError CompareBlocks(const Cell& cell1, const Cell& cell2) noexcept
 
 		vd = _mm256_abs_epi16(vd);
 
-		vd = _mm256_srli_epi16(vd, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			vd = _mm256_adds_epu8(vd, vd);
+		}
+
+		vd = _mm256_srli_epi16(vd, kDenoiseShift);
 
 		__m256i vmask = _mm256_cvtepi8_epi16(_mm_load_si128(&cell1.MaskRows_S8[y]));
 		vd = _mm256_and_si256(vd, vmask);
@@ -66,8 +71,14 @@ BlockError CompareBlocks(const Cell& cell1, const Cell& cell2) noexcept
 		mdL = _mm_abs_epi16(mdL);
 		mdH = _mm_abs_epi16(mdH);
 
-		mdL = _mm_srli_epi16(mdL, kDenoise);
-		mdH = _mm_srli_epi16(mdH, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			mdL = _mm_adds_epu8(mdL, mdL);
+			mdH = _mm_adds_epu8(mdH, mdH);
+		}
+
+		mdL = _mm_srli_epi16(mdL, kDenoiseShift);
+		mdH = _mm_srli_epi16(mdH, kDenoiseShift);
 
 		__m128i mmask = _mm_load_si128(&cell1.MaskRows_S8[y]);
 

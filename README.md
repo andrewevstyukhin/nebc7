@@ -30,6 +30,16 @@ The solution was tested on SSSE3, SSE4.1, AVX, AVX2, AVX-512BW - capable CPUs fo
 
 I would recommend using AVX2 or AVX-512 for the best performance. See Bc7Mode.h about settings.
 
+## Customization
+
+The kDenoise and kDenoiseStep constants in Bc7Mode.h define RDO capabilities:
+
+1. The most performant and compact mode is defined by kDenoise = 1, kDenoiseStep = 3 \* 3.
+2. Generally precise but much slower mode is defined by kDenoise = 0, kDenoiseStep = 0.
+3. Especially for Moon shots (black backround with low light amplitude) I recommend kDenoise = 0, kDenoiseStep = 3 \* 3.
+
+The constants kAlpha, kGreen, kRed, kBlue set weights for channels and depend on the nature of the data.
+
 ## Example
 
 Recompressing "BC7Ltest.png" (gained from https://code.google.com/archive/p/nvidia-texture-tools/downloads bc7_export.zip) on i7-6700 CPU:

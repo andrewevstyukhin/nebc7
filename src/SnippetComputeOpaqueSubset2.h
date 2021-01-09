@@ -41,8 +41,14 @@ static INLINED int ComputeSubsetError2(const Area& area, __m128i mc, const __m12
 		wx = _mm512_abs_epi16(wx);
 		wy = _mm512_abs_epi16(wy);
 
-		wx = _mm512_srli_epi16(wx, kDenoise);
-		wy = _mm512_srli_epi16(wy, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			wx = _mm512_adds_epu8(wx, wx);
+			wy = _mm512_adds_epu8(wy, wy);
+		}
+
+		wx = _mm512_srli_epi16(wx, kDenoiseShift);
+		wy = _mm512_srli_epi16(wy, kDenoiseShift);
 
 		wx = _mm512_mullo_epi16(wx, wx);
 		wy = _mm512_mullo_epi16(wy, wy);
@@ -77,8 +83,14 @@ static INLINED int ComputeSubsetError2(const Area& area, __m128i mc, const __m12
 		vx = _mm256_abs_epi16(vx);
 		vy = _mm256_abs_epi16(vy);
 
-		vx = _mm256_srli_epi16(vx, kDenoise);
-		vy = _mm256_srli_epi16(vy, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			vx = _mm256_adds_epu8(vx, vx);
+			vy = _mm256_adds_epu8(vy, vy);
+		}
+
+		vx = _mm256_srli_epi16(vx, kDenoiseShift);
+		vy = _mm256_srli_epi16(vy, kDenoiseShift);
 
 		vx = _mm256_mullo_epi16(vx, vx);
 		vy = _mm256_mullo_epi16(vy, vy);
@@ -107,7 +119,12 @@ static INLINED int ComputeSubsetError2(const Area& area, __m128i mc, const __m12
 
 		vx = _mm256_abs_epi16(vx);
 
-		vx = _mm256_srli_epi16(vx, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			vx = _mm256_adds_epu8(vx, vx);
+		}
+
+		vx = _mm256_srli_epi16(vx, kDenoiseShift);
 
 		vx = _mm256_mullo_epi16(vx, vx);
 
@@ -159,10 +176,18 @@ done:
 		vz = _mm256_abs_epi16(vz);
 		vw = _mm256_abs_epi16(vw);
 
-		vx = _mm256_srli_epi16(vx, kDenoise);
-		vy = _mm256_srli_epi16(vy, kDenoise);
-		vz = _mm256_srli_epi16(vz, kDenoise);
-		vw = _mm256_srli_epi16(vw, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			vx = _mm256_adds_epu8(vx, vx);
+			vy = _mm256_adds_epu8(vy, vy);
+			vz = _mm256_adds_epu8(vz, vz);
+			vw = _mm256_adds_epu8(vw, vw);
+		}
+
+		vx = _mm256_srli_epi16(vx, kDenoiseShift);
+		vy = _mm256_srli_epi16(vy, kDenoiseShift);
+		vz = _mm256_srli_epi16(vz, kDenoiseShift);
+		vw = _mm256_srli_epi16(vw, kDenoiseShift);
 
 		vx = _mm256_mullo_epi16(vx, vx);
 		vy = _mm256_mullo_epi16(vy, vy);
@@ -206,8 +231,14 @@ done:
 		vx = _mm256_abs_epi16(vx);
 		vy = _mm256_abs_epi16(vy);
 
-		vx = _mm256_srli_epi16(vx, kDenoise);
-		vy = _mm256_srli_epi16(vy, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			vx = _mm256_adds_epu8(vx, vx);
+			vy = _mm256_adds_epu8(vy, vy);
+		}
+
+		vx = _mm256_srli_epi16(vx, kDenoiseShift);
+		vy = _mm256_srli_epi16(vy, kDenoiseShift);
 
 		vx = _mm256_mullo_epi16(vx, vx);
 		vy = _mm256_mullo_epi16(vy, vy);
@@ -236,7 +267,12 @@ done:
 
 		vx = _mm256_abs_epi16(vx);
 
-		vx = _mm256_srli_epi16(vx, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			vx = _mm256_adds_epu8(vx, vx);
+		}
+
+		vx = _mm256_srli_epi16(vx, kDenoiseShift);
 
 		vx = _mm256_mullo_epi16(vx, vx);
 
@@ -277,8 +313,14 @@ done:
 		mx = _mm_abs_epi16(mx);
 		my = _mm_abs_epi16(my);
 
-		mx = _mm_srli_epi16(mx, kDenoise);
-		my = _mm_srli_epi16(my, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			mx = _mm_adds_epu8(mx, mx);
+			my = _mm_adds_epu8(my, my);
+		}
+
+		mx = _mm_srli_epi16(mx, kDenoiseShift);
+		my = _mm_srli_epi16(my, kDenoiseShift);
 
 		mx = _mm_mullo_epi16(mx, mx);
 		my = _mm_mullo_epi16(my, my);
@@ -338,7 +380,12 @@ static INLINED int ComputeSubsetError2Pair(const Area& area, __m128i mc, const _
 
 		wx = _mm512_abs_epi16(wx);
 
-		wx = _mm512_srli_epi16(wx, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			wx = _mm512_adds_epu8(wx, wx);
+		}
+
+		wx = _mm512_srli_epi16(wx, kDenoiseShift);
 
 		wx = _mm512_mullo_epi16(wx, wx);
 
@@ -367,7 +414,12 @@ static INLINED int ComputeSubsetError2Pair(const Area& area, __m128i mc, const _
 
 		vx = _mm256_abs_epi16(vx);
 
-		vx = _mm256_srli_epi16(vx, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			vx = _mm256_adds_epu8(vx, vx);
+		}
+
+		vx = _mm256_srli_epi16(vx, kDenoiseShift);
 
 		vx = _mm256_mullo_epi16(vx, vx);
 
@@ -392,7 +444,12 @@ static INLINED int ComputeSubsetError2Pair(const Area& area, __m128i mc, const _
 
 		mx = _mm_abs_epi16(mx);
 
-		mx = _mm_srli_epi16(mx, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			mx = _mm_adds_epu8(mx, mx);
+		}
+
+		mx = _mm_srli_epi16(mx, kDenoiseShift);
 
 		mx = _mm_mullo_epi16(mx, mx);
 
@@ -427,8 +484,14 @@ done:
 		vx = _mm256_abs_epi16(vx);
 		vy = _mm256_abs_epi16(vy);
 
-		vx = _mm256_srli_epi16(vx, kDenoise);
-		vy = _mm256_srli_epi16(vy, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			vx = _mm256_adds_epu8(vx, vx);
+			vy = _mm256_adds_epu8(vy, vy);
+		}
+
+		vx = _mm256_srli_epi16(vx, kDenoiseShift);
+		vy = _mm256_srli_epi16(vy, kDenoiseShift);
 
 		vx = _mm256_mullo_epi16(vx, vx);
 		vy = _mm256_mullo_epi16(vy, vy);
@@ -462,7 +525,12 @@ done:
 
 		vx = _mm256_abs_epi16(vx);
 
-		vx = _mm256_srli_epi16(vx, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			vx = _mm256_adds_epu8(vx, vx);
+		}
+
+		vx = _mm256_srli_epi16(vx, kDenoiseShift);
 
 		vx = _mm256_mullo_epi16(vx, vx);
 
@@ -487,7 +555,12 @@ done:
 
 		mx = _mm_abs_epi16(mx);
 
-		mx = _mm_srli_epi16(mx, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			mx = _mm_adds_epu8(mx, mx);
+		}
+
+		mx = _mm_srli_epi16(mx, kDenoiseShift);
 
 		mx = _mm_mullo_epi16(mx, mx);
 
@@ -510,7 +583,12 @@ done:
 
 		mx = _mm_abs_epi16(mx);
 
-		mx = _mm_srli_epi16(mx, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			mx = _mm_adds_epu8(mx, mx);
+		}
+
+		mx = _mm_srli_epi16(mx, kDenoiseShift);
 
 		mx = _mm_mullo_epi16(mx, mx);
 
@@ -576,7 +654,15 @@ static INLINED auto ComputeSubsetTable2(const Area& area, __m128i mc, uint64_t& 
 		{
 			int da = *(const uint16_t*)&state.Values_I16[state.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
 
-			da = (da < 0 ? -da : da) >> kDenoise;
+			da = (da < 0) ? -da : da;
+			if constexpr (!kDenoise)
+			{
+				da = (da > 0x7F) ? 0x7F : da;
+			}
+			else
+			{
+				da >>= kDenoise;
+			}
 
 			errorAlpha += da * da;
 		}

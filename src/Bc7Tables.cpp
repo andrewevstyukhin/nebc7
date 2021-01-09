@@ -619,7 +619,12 @@ void InitLevels() noexcept
 					mv = _mm_sub_epi16(mv, mx);
 					mv = _mm_abs_epi16(mv);
 
-					mv = _mm_srli_epi16(mv, kDenoise);
+					if constexpr (!kDenoise)
+					{
+						mv = _mm_adds_epu8(mv, mv);
+					}
+
+					mv = _mm_srli_epi16(mv, kDenoiseShift);
 
 					gTableDeltas3_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
 				}
@@ -664,7 +669,12 @@ void InitLevels() noexcept
 					mv = _mm_sub_epi16(mv, mx);
 					mv = _mm_abs_epi16(mv);
 
-					mv = _mm_srli_epi16(mv, kDenoise);
+					if constexpr (!kDenoise)
+					{
+						mv = _mm_adds_epu8(mv, mv);
+					}
+
+					mv = _mm_srli_epi16(mv, kDenoiseShift);
 
 					gTableDeltas2_Value8[x][c] = (uint8_t)_mm_extract_epi16(_mm_minpos_epu16(mv), 0);
 				}
@@ -734,7 +744,12 @@ void InitLevels() noexcept
 
 					__m128i mv = _mm_min_epi16(mv0, mv1);
 
-					mv = _mm_srli_epi16(mv, kDenoise);
+					if constexpr (!kDenoise)
+					{
+						mv = _mm_adds_epu8(mv, mv);
+					}
+
+					mv = _mm_srli_epi16(mv, kDenoiseShift);
 
 					mv = _mm_min_epi16(mv, _mm_set1_epi16(0xF));
 

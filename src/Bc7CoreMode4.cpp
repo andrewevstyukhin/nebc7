@@ -235,10 +235,18 @@ namespace Mode4 {
 			wz = _mm512_abs_epi16(wz);
 			ww = _mm512_abs_epi16(ww);
 
-			wx = _mm512_srli_epi16(wx, kDenoise);
-			wy = _mm512_srli_epi16(wy, kDenoise);
-			wz = _mm512_srli_epi16(wz, kDenoise);
-			ww = _mm512_srli_epi16(ww, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				wx = _mm512_adds_epu8(wx, wx);
+				wy = _mm512_adds_epu8(wy, wy);
+				wz = _mm512_adds_epu8(wz, wz);
+				ww = _mm512_adds_epu8(ww, ww);
+			}
+
+			wx = _mm512_srli_epi16(wx, kDenoiseShift);
+			wy = _mm512_srli_epi16(wy, kDenoiseShift);
+			wz = _mm512_srli_epi16(wz, kDenoiseShift);
+			ww = _mm512_srli_epi16(ww, kDenoiseShift);
 
 			wx = _mm512_mullo_epi16(wx, wx);
 			wy = _mm512_mullo_epi16(wy, wy);
@@ -323,10 +331,18 @@ namespace Mode4 {
 			vz = _mm256_abs_epi16(vz);
 			vw = _mm256_abs_epi16(vw);
 
-			vx = _mm256_srli_epi16(vx, kDenoise);
-			vy = _mm256_srli_epi16(vy, kDenoise);
-			vz = _mm256_srli_epi16(vz, kDenoise);
-			vw = _mm256_srli_epi16(vw, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				vx = _mm256_adds_epu8(vx, vx);
+				vy = _mm256_adds_epu8(vy, vy);
+				vz = _mm256_adds_epu8(vz, vz);
+				vw = _mm256_adds_epu8(vw, vw);
+			}
+
+			vx = _mm256_srli_epi16(vx, kDenoiseShift);
+			vy = _mm256_srli_epi16(vy, kDenoiseShift);
+			vz = _mm256_srli_epi16(vz, kDenoiseShift);
+			vw = _mm256_srli_epi16(vw, kDenoiseShift);
 
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
@@ -410,10 +426,18 @@ namespace Mode4 {
 			mz = _mm_abs_epi16(mz);
 			mw = _mm_abs_epi16(mw);
 
-			mx = _mm_srli_epi16(mx, kDenoise);
-			my = _mm_srli_epi16(my, kDenoise);
-			mz = _mm_srli_epi16(mz, kDenoise);
-			mw = _mm_srli_epi16(mw, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				mx = _mm_adds_epu8(mx, mx);
+				my = _mm_adds_epu8(my, my);
+				mz = _mm_adds_epu8(mz, mz);
+				mw = _mm_adds_epu8(mw, mw);
+			}
+
+			mx = _mm_srli_epi16(mx, kDenoiseShift);
+			my = _mm_srli_epi16(my, kDenoiseShift);
+			mz = _mm_srli_epi16(mz, kDenoiseShift);
+			mw = _mm_srli_epi16(mw, kDenoiseShift);
 
 			mx = _mm_mullo_epi16(mx, mx);
 			my = _mm_mullo_epi16(my, my);
@@ -478,7 +502,12 @@ namespace Mode4 {
 
 			mweight = _mm_mullo_epi16(mweight, _mm_cvtsi32_si128(static_cast<int>(16 - i)));
 
-			mx = _mm_srli_epi16(mx, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				mx = _mm_adds_epu8(mx, mx);
+			}
+
+			mx = _mm_srli_epi16(mx, kDenoiseShift);
 
 			mx = _mm_mullo_epi16(mx, mx);
 
@@ -544,10 +573,18 @@ namespace Mode4 {
 			wz = _mm512_abs_epi16(wz);
 			ww = _mm512_abs_epi16(ww);
 
-			wx = _mm512_srli_epi16(wx, kDenoise);
-			wy = _mm512_srli_epi16(wy, kDenoise);
-			wz = _mm512_srli_epi16(wz, kDenoise);
-			ww = _mm512_srli_epi16(ww, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				wx = _mm512_adds_epu8(wx, wx);
+				wy = _mm512_adds_epu8(wy, wy);
+				wz = _mm512_adds_epu8(wz, wz);
+				ww = _mm512_adds_epu8(ww, ww);
+			}
+
+			wx = _mm512_srli_epi16(wx, kDenoiseShift);
+			wy = _mm512_srli_epi16(wy, kDenoiseShift);
+			wz = _mm512_srli_epi16(wz, kDenoiseShift);
+			ww = _mm512_srli_epi16(ww, kDenoiseShift);
 
 			wx = _mm512_mullo_epi16(wx, wx);
 			wy = _mm512_mullo_epi16(wy, wy);
@@ -636,10 +673,18 @@ namespace Mode4 {
 			vz = _mm256_abs_epi16(vz);
 			vw = _mm256_abs_epi16(vw);
 
-			vx = _mm256_srli_epi16(vx, kDenoise);
-			vy = _mm256_srli_epi16(vy, kDenoise);
-			vz = _mm256_srli_epi16(vz, kDenoise);
-			vw = _mm256_srli_epi16(vw, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				vx = _mm256_adds_epu8(vx, vx);
+				vy = _mm256_adds_epu8(vy, vy);
+				vz = _mm256_adds_epu8(vz, vz);
+				vw = _mm256_adds_epu8(vw, vw);
+			}
+
+			vx = _mm256_srli_epi16(vx, kDenoiseShift);
+			vy = _mm256_srli_epi16(vy, kDenoiseShift);
+			vz = _mm256_srli_epi16(vz, kDenoiseShift);
+			vw = _mm256_srli_epi16(vw, kDenoiseShift);
 
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
@@ -727,10 +772,18 @@ namespace Mode4 {
 			mz = _mm_abs_epi16(mz);
 			mw = _mm_abs_epi16(mw);
 
-			mx = _mm_srli_epi16(mx, kDenoise);
-			my = _mm_srli_epi16(my, kDenoise);
-			mz = _mm_srli_epi16(mz, kDenoise);
-			mw = _mm_srli_epi16(mw, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				mx = _mm_adds_epu8(mx, mx);
+				my = _mm_adds_epu8(my, my);
+				mz = _mm_adds_epu8(mz, mz);
+				mw = _mm_adds_epu8(mw, mw);
+			}
+
+			mx = _mm_srli_epi16(mx, kDenoiseShift);
+			my = _mm_srli_epi16(my, kDenoiseShift);
+			mz = _mm_srli_epi16(mz, kDenoiseShift);
+			mw = _mm_srli_epi16(mw, kDenoiseShift);
 
 			mx = _mm_mullo_epi16(mx, mx);
 			my = _mm_mullo_epi16(my, my);
@@ -799,7 +852,12 @@ namespace Mode4 {
 
 			mweight = _mm_mullo_epi16(mweight, _mm_cvtsi32_si128(static_cast<int>(16 - i)));
 
-			mx = _mm_srli_epi16(mx, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				mx = _mm_adds_epu8(mx, mx);
+			}
+
+			mx = _mm_srli_epi16(mx, kDenoiseShift);
 
 			mx = _mm_mullo_epi16(mx, mx);
 
@@ -858,7 +916,15 @@ namespace Mode4 {
 				{
 					int da = *(const uint16_t*)&state3.Values_I16[state3.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
 
-					da = (da < 0 ? -da : da) >> kDenoise;
+					da = (da < 0) ? -da : da;
+					if constexpr (!kDenoise)
+					{
+						da = (da > 0x7F) ? 0x7F : da;
+					}
+					else
+					{
+						da >>= kDenoise;
+					}
 
 					errorAlpha += da * da;
 				}
@@ -909,7 +975,15 @@ namespace Mode4 {
 				{
 					int da = *(const uint16_t*)&state1.Values_I16[state1.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
 
-					da = (da < 0 ? -da : da) >> kDenoise;
+					da = (da < 0) ? -da : da;
+					if constexpr (!kDenoise)
+					{
+						da = (da > 0x7F) ? 0x7F : da;
+					}
+					else
+					{
+						da >>= kDenoise;
+					}
 
 					errorAlpha += da * da;
 				}
@@ -975,7 +1049,15 @@ namespace Mode4 {
 				{
 					int da = *(const uint16_t*)&state3.Values_I16[state3.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
 
-					da = (da < 0 ? -da : da) >> kDenoise;
+					da = (da < 0) ? -da : da;
+					if constexpr (!kDenoise)
+					{
+						da = (da > 0x7F) ? 0x7F : da;
+					}
+					else
+					{
+						da >>= kDenoise;
+					}
 
 					errorAlpha += da * da;
 				}
@@ -1016,7 +1098,15 @@ namespace Mode4 {
 				{
 					int da = *(const uint16_t*)&state1.Values_I16[state1.Best[i]] - *(const uint16_t*)&area.DataMask_I16[i];
 
-					da = (da < 0 ? -da : da) >> kDenoise;
+					da = (da < 0) ? -da : da;
+					if constexpr (!kDenoise)
+					{
+						da = (da > 0x7F) ? 0x7F : da;
+					}
+					else
+					{
+						da >>= kDenoise;
+					}
 
 					errorAlpha += da * da;
 				}

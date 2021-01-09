@@ -31,7 +31,14 @@ static INLINED int ComputeOpaqueAlphaError(const Area& area) noexcept
 		{
 			int da = *(const short*)&area.DataMask_I16[i] ^ 255;
 
-			da >>= kDenoise;
+			if constexpr (!kDenoise)
+			{
+				da = (da > 0x7F) ? 0x7F : da;
+			}
+			else
+			{
+				da >>= kDenoise;
+			}
 
 			error += da * da;
 		}
@@ -729,8 +736,14 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 			__m512i wy = _mm512_abs_epi16(wx);
 			__m512i ww = _mm512_abs_epi16(wz);
 
-			wy = _mm512_srli_epi16(wy, kDenoise);
-			ww = _mm512_srli_epi16(ww, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				wy = _mm512_adds_epu8(wy, wy);
+				ww = _mm512_adds_epu8(ww, ww);
+			}
+
+			wy = _mm512_srli_epi16(wy, kDenoiseShift);
+			ww = _mm512_srli_epi16(ww, kDenoiseShift);
 
 			wx = _mm512_mullo_epi16(wx, wx);
 			wy = _mm512_mullo_epi16(wy, wy);
@@ -767,7 +780,12 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 
 			__m512i wy = _mm512_abs_epi16(wx);
 
-			wy = _mm512_srli_epi16(wy, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				wy = _mm512_adds_epu8(wy, wy);
+			}
+
+			wy = _mm512_srli_epi16(wy, kDenoiseShift);
 
 			wx = _mm512_mullo_epi16(wx, wx);
 			wy = _mm512_mullo_epi16(wy, wy);
@@ -794,7 +812,12 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 
 			__m256i vy = _mm256_abs_epi16(vx);
 
-			vy = _mm256_srli_epi16(vy, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				vy = _mm256_adds_epu8(vy, vy);
+			}
+
+			vy = _mm256_srli_epi16(vy, kDenoiseShift);
 
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
@@ -883,10 +906,18 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 			__m256i vyy = _mm256_abs_epi16(vxx);
 			__m256i vww = _mm256_abs_epi16(vzz);
 
-			vy = _mm256_srli_epi16(vy, kDenoise);
-			vw = _mm256_srli_epi16(vw, kDenoise);
-			vyy = _mm256_srli_epi16(vyy, kDenoise);
-			vww = _mm256_srli_epi16(vww, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				vy = _mm256_adds_epu8(vy, vy);
+				vw = _mm256_adds_epu8(vw, vw);
+				vyy = _mm256_adds_epu8(vyy, vyy);
+				vww = _mm256_adds_epu8(vww, vww);
+			}
+
+			vy = _mm256_srli_epi16(vy, kDenoiseShift);
+			vw = _mm256_srli_epi16(vw, kDenoiseShift);
+			vyy = _mm256_srli_epi16(vyy, kDenoiseShift);
+			vww = _mm256_srli_epi16(vww, kDenoiseShift);
 
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
@@ -946,8 +977,14 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 			__m256i vy = _mm256_abs_epi16(vx);
 			__m256i vw = _mm256_abs_epi16(vz);
 
-			vy = _mm256_srli_epi16(vy, kDenoise);
-			vw = _mm256_srli_epi16(vw, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				vy = _mm256_adds_epu8(vy, vy);
+				vw = _mm256_adds_epu8(vw, vw);
+			}
+
+			vy = _mm256_srli_epi16(vy, kDenoiseShift);
+			vw = _mm256_srli_epi16(vw, kDenoiseShift);
 
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
@@ -984,7 +1021,12 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 
 			__m256i vy = _mm256_abs_epi16(vx);
 
-			vy = _mm256_srli_epi16(vy, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				vy = _mm256_adds_epu8(vy, vy);
+			}
+
+			vy = _mm256_srli_epi16(vy, kDenoiseShift);
 
 			vx = _mm256_mullo_epi16(vx, vx);
 			vy = _mm256_mullo_epi16(vy, vy);
@@ -1075,7 +1117,12 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 
 			__m128i my = _mm_abs_epi16(mx);
 
-			my = _mm_srli_epi16(my, kDenoise);
+			if constexpr (!kDenoise)
+			{
+				my = _mm_adds_epu8(my, my);
+			}
+
+			my = _mm_srli_epi16(my, kDenoiseShift);
 
 			mx = _mm_mullo_epi16(mx, mx);
 			my = _mm_mullo_epi16(my, my);
@@ -1192,7 +1239,14 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 
 		const int index = (bottom != alpha0) ? M - 1 : 0;
 
-		bottom >>= kDenoise;
+		if constexpr (!kDenoise)
+		{
+			bottom = (bottom > 0x7F) ? 0x7F : bottom;
+		}
+		else
+		{
+			bottom >>= kDenoise;
+		}
 
 		errorBlock += bottom * bottom * _mm_extract_epi16(mweights, 0) * int(area.Count - area.Active);
 

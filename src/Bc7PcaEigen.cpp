@@ -115,7 +115,12 @@ static INLINED int PrincipalComponentAnalysis(const Area& area)
 
 		__m128i md = _mm_cvttps_epi32(me);
 
-		md = _mm_srli_epi16(md, kDenoise);
+		if constexpr (!kDenoise)
+		{
+			md = _mm_adds_epu8(md, md);
+		}
+
+		md = _mm_srli_epi16(md, kDenoiseShift);
 
 		md = _mm_mullo_epi16(md, md);
 

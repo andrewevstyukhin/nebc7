@@ -149,8 +149,11 @@ namespace LevelsMinimum {
 
 		int d = _mm_cvtsi128_si32(_mm_cvttps_epi32(_mm_sqrt_ss(_mm_cvtepi32_ps(_mm_cvtsi32_si128(top)))));
 		d -= int(d * d >= top);
-		d <<= kDenoise;
-		d += (1 << kDenoise) - 1;
+		if constexpr (kDenoise)
+		{
+			d <<= kDenoise;
+			d += (1 << kDenoise) - 1;
+		}
 
 		constexpr int tailmask = (1 << (8 - bits)) - 1;
 		constexpr int shift = bits;
