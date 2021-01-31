@@ -241,6 +241,18 @@ namespace Mode5 {
 
 } // namespace Mode5
 
+namespace Mode6Index2 {
+
+	void FinalPackBlock(uint8_t output[16], Cell& input) noexcept;
+
+	void CompressBlockFast(Cell& input) noexcept;
+
+	void CompressBlock(Cell& input) noexcept;
+
+	void PrintCounters() noexcept;
+
+} // namespace Mode6Index2
+
 namespace Mode6 {
 
 	void DecompressBlock(uint8_t input[16], Cell& output) noexcept;
@@ -285,9 +297,7 @@ struct WorkerItem
 	uint8_t* _Cell;
 	uint8_t* _Mask;
 
-	WorkerItem()
-	{
-	}
+	WorkerItem() = default;
 
 	WorkerItem(uint8_t* output, uint8_t* cell, uint8_t* mask)
 		: _Output(output)

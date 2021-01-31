@@ -53,6 +53,7 @@ alignas(64) extern uint16_t gTableCuts3_Value7Shared[0x100][0x80];
 alignas(64) extern uint16_t gTableCuts3_Value5[0x100][0x20];
 
 alignas(64) extern uint8_t gTableDeltas4Half_Value8[0x100][0x100 * 0x80];
+alignas(64) extern uint8_t gTableDeltas2Half_Value8[0x100][0x100 * 0x80];
 
 void InitLevels() noexcept;
 

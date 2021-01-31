@@ -13,7 +13,7 @@
 #endif
 
 #if defined(OPTION_COUNTERS)
-static std::atomic_int gCounterModes[8];
+static std::atomic_int gCounterModes[9 + 1];
 static std::atomic_int gCompressAlready, gCompress, gCompressBad;
 #endif
 
@@ -1491,19 +1491,27 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 
 			if (input.Error.Total > denoiseStep)
 			{
-				Mode6::CompressBlockFast(input);
+				if constexpr (kDenoise || kDenoiseStep)
+				{
+					Mode6Index2::CompressBlockFast(input);
+				}
 
 				if (input.Error.Total > denoiseStep)
 				{
-					Mode4::CompressBlockFast(input);
+					Mode6::CompressBlockFast(input);
 
 					if (input.Error.Total > denoiseStep)
 					{
-						Mode5::CompressBlockFast(input);
+						Mode4::CompressBlockFast(input);
 
 						if (input.Error.Total > denoiseStep)
 						{
-							Mode7::CompressBlockFast(input);
+							Mode5::CompressBlockFast(input);
+
+							if (input.Error.Total > denoiseStep)
+							{
+								Mode7::CompressBlockFast(input);
+							}
 						}
 					}
 				}
@@ -1594,6 +1602,13 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 					if (input.Error.Total > 0)
 					{
 						Mode7::CompressBlock(input);
+					}
+					break;
+
+				case 9:
+					if (input.Error.Total > 0)
+					{
+						Mode6Index2::CompressBlock(input);
 					}
 					break;
 				}
@@ -1708,6 +1723,10 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 				case 7:
 					Mode7::FinalPackBlock(output, input);
 					break;
+
+				case 9:
+					Mode6Index2::FinalPackBlock(output, input);
+					break;
 				}
 
 				DecompressBlock(output, temp);
@@ -1751,8 +1770,8 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 
 void CompressStatistics()
 {
-	PRINTF("[Transparent]\tM4 = %i, M6 = %i, M5 = %i, M7 = %i",
-		gCounterModes[4].load(), gCounterModes[6].load(), gCounterModes[5].load(), gCounterModes[7].load());
+	PRINTF("[Transparent]\tM4 = %i, M6I2 = %i, M6 = %i, M5 = %i, M7 = %i",
+		gCounterModes[4].load(), gCounterModes[9].load(), gCounterModes[6].load(), gCounterModes[5].load(), gCounterModes[7].load());
 
 	PRINTF("[Opaque]\tM1 = %i, M3 = %i, M2 = %i, M0 = %i",
 		gCounterModes[1].load(), gCounterModes[3].load(), gCounterModes[2].load(), gCounterModes[0].load());
@@ -1766,6 +1785,7 @@ void CompressStatistics()
 	Mode0::PrintCounters();
 
 	Mode4::PrintCounters();
+	Mode6Index2::PrintCounters();
 	Mode6::PrintCounters();
 	Mode5::PrintCounters();
 	Mode7::PrintCounters();

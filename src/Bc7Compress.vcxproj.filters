@@ -115,5 +115,8 @@
     <ClCompile Include="Bc7PcaEigen.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Bc7CoreMode6Index2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

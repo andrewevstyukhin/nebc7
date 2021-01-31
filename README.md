@@ -22,6 +22,10 @@ For premultiplied alpha it is necessary to specify "/nomask" command-line option
 
 Many encoders use single metric (RMSE / MSE / PSNR) insensitive to a direction. While SSIM is unhandy for direct compression, it enhances correlation when encoding produces equal deltas and so SSIM overcomes dithering.
 
+## Special features
+
+Additional mode 6 with 2-bit index instead of 4-bit gives a significant reduction in size.
+
 ## Usage
 
 The solution was tested on SSSE3, SSE4.1, AVX, AVX2, AVX-512BW - capable CPUs for Win64 API only.
@@ -63,7 +67,7 @@ Compressing "frymire.png" (gained from https://github.com/castano/nvidia-texture
           SubTexture RGB qMSE = 0.5, qPSNR = 50.950326, wSSIM_4x4 = 0.97143024
         Saved frymire.ktx
 
-Compressing "8192.png" (gained from https://bitbucket.org/wolfpld/etcpak/downloads/8192.png) in development mode:
+Compressing "8192.png" (gained from removed https://bitbucket.org/wolfpld/etcpak/downloads/8192.png) in development mode:
 
     Bc7Compress.exe /draft /nomask /noflip 8192.png 8192.ktx
     Loaded 8192.png
@@ -75,7 +79,7 @@ Compressing "8192.png" (gained from https://bitbucket.org/wolfpld/etcpak/downloa
 
 ## Copyright
 
-Copyright (c) 2019-2020 Andrew Evstyukhin
+Copyright (c) 2019-2021 Andrew Evstyukhin
 
 Licensed under the MIT License.
 

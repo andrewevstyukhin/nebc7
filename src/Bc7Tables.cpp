@@ -492,6 +492,7 @@ alignas(64) uint16_t gTableCuts3_Value7Shared[0x100][0x80];
 alignas(64) uint16_t gTableCuts3_Value5[0x100][0x20];
 
 alignas(64) uint8_t gTableDeltas4Half_Value8[0x100][0x100 * 0x80];
+alignas(64) uint8_t gTableDeltas2Half_Value8[0x100][0x100 * 0x80];
 
 template<int bits>
 static INLINED void ReduceLevels(const uint8_t table[0x100][0x100 * 0x100], uint8_t* p)
@@ -755,6 +756,21 @@ void InitLevels() noexcept
 
 					gTableDeltas4Half_Value8[x][c >> 1] |= static_cast<uint8_t>(_mm_extract_epi16(_mm_minpos_epu16(mv), 0) << ((c & 1) << 2));
 				}
+			}
+		}
+	}
+
+	// 2-bit subset of 4-bit index
+	{
+		for (int x = 0; x < 0x100; x++)
+		{
+			for (int c = 0; c < 0x100 * 0x100; c++)
+			{
+				uint8_t v = gTableDeltas2_Value8[x][c];
+
+				v = (v > 0xF) ? 0xF : v;
+
+				gTableDeltas2Half_Value8[x][c >> 1] |= static_cast<uint8_t>(v << ((c & 1) << 2));
 			}
 		}
 	}
