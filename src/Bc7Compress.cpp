@@ -203,11 +203,25 @@ static INLINED void VisualizePartitionsGRB(uint8_t* dst_bc7, int size)
 
 					data0 &= (1u << 7) - 1u;
 
-					data0 |=
-						(0x40uLL << 21) + // G0
-						(0x40uLL << 7) + // R0
-						(0x40uLL << 35) + // B0
-						(0x7FuLL << 49); // A0
+					// data1 = InsertZeroBit(data1 >> 1, 3);
+					data1 = (data1 & ~0xFuLL) + ((data1 & 0xFuLL) >> 1);
+
+					if (((data1 >> 2) ^ data1) & 0x3333333333333333uLL)
+					{
+						data0 |=
+							(0x50uLL << 21) + // G0
+							(0x50uLL << 7) + // R0
+							(0x50uLL << 35) + // B0
+							(0x7FuLL << 49); // A0
+					}
+					else
+					{
+						data0 |=
+							(0x30uLL << 21) + // G0
+							(0x30uLL << 7) + // R0
+							(0x30uLL << 35) + // B0
+							(0x7FuLL << 49); // A0
+					}
 
 					data1 = 0;
 				}
