@@ -777,17 +777,37 @@ void InitLevels() noexcept
 }
 
 
-alignas(16) const __m128i gWeightsAGRB = _mm_set_epi16(kBlue, kRed, kGreen, kAlpha, kBlue, kRed, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsAGR = _mm_set_epi16(0, kRed, kGreen, kAlpha, 0, kRed, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsAGB = _mm_set_epi16(kBlue, 0, kGreen, kAlpha, kBlue, 0, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsAG = _mm_set_epi16(0, 0, kGreen, kAlpha, 0, 0, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsAR = _mm_set_epi16(0, kRed, 0, kAlpha, 0, kRed, 0, kAlpha);
-alignas(16) const __m128i gWeightsAGAG = _mm_set_epi16(kGreen, kAlpha, kGreen, kAlpha, kGreen, kAlpha, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsARAR = _mm_set_epi16(kRed, kAlpha, kRed, kAlpha, kRed, kAlpha, kRed, kAlpha);
-alignas(16) const __m128i gWeightsGRB = _mm_set_epi16(kBlue, kRed, kGreen, 0, kBlue, kRed, kGreen, 0);
-alignas(16) const __m128i gWeightsGRGR = _mm_set_epi16(kRed, kGreen, kRed, kGreen, kRed, kGreen, kRed, kGreen);
-alignas(16) const __m128i gWeightsGBGB = _mm_set_epi16(kBlue, kGreen, kBlue, kGreen, kBlue, kGreen, kBlue, kGreen);
+// https://stackoverflow.com/questions/35268036/how-can-i-set-m128i-without-using-of-any-sse-instruction
+#if defined(__clang__)
+#define MM_SET_4_epi16(w, z, y, x) { \
+	static_cast<long long>(uint64_t(uint16_t(x)) + (uint64_t(uint16_t(y)) << 16) + (uint64_t(uint16_t(z)) << 32) + (uint64_t(uint16_t(w)) << 48)), \
+	static_cast<long long>(uint64_t(uint16_t(x)) + (uint64_t(uint16_t(y)) << 16) + (uint64_t(uint16_t(z)) << 32) + (uint64_t(uint16_t(w)) << 48)) }
+#elif defined(_MSC_VER)
+#define MM_SET_4_epi16(w, z, y, x) { \
+	char(uint16_t(x) & 0xFFu), char(uint16_t(x) >> 8), \
+	char(uint16_t(y) & 0xFFu), char(uint16_t(y) >> 8), \
+	char(uint16_t(z) & 0xFFu), char(uint16_t(z) >> 8), \
+	char(uint16_t(w) & 0xFFu), char(uint16_t(w) >> 8), \
+	char(uint16_t(x) & 0xFFu), char(uint16_t(x) >> 8), \
+	char(uint16_t(y) & 0xFFu), char(uint16_t(y) >> 8), \
+	char(uint16_t(z) & 0xFFu), char(uint16_t(z) >> 8), \
+	char(uint16_t(w) & 0xFFu), char(uint16_t(w) >> 8) }
+#else
+#define MM_SET_4_epi16(w, z, y, x) _mm_set_epi16((w), (z), (y), (x), (w), (z), (y), (x))
+#endif
 
+alignas(16) const __m128i gWeightsAGRB = MM_SET_4_epi16(kBlue, kRed, kGreen, kAlpha);
+alignas(16) const __m128i gWeightsAGR = MM_SET_4_epi16(0, kRed, kGreen, kAlpha);
+alignas(16) const __m128i gWeightsAGB = MM_SET_4_epi16(kBlue, 0, kGreen, kAlpha);
+alignas(16) const __m128i gWeightsAG = MM_SET_4_epi16(0, 0, kGreen, kAlpha);
+alignas(16) const __m128i gWeightsAR = MM_SET_4_epi16(0, kRed, 0, kAlpha);
+alignas(16) const __m128i gWeightsAGAG = MM_SET_4_epi16(kGreen, kAlpha, kGreen, kAlpha);
+alignas(16) const __m128i gWeightsARAR = MM_SET_4_epi16(kRed, kAlpha, kRed, kAlpha);
+alignas(16) const __m128i gWeightsGRB = MM_SET_4_epi16(kBlue, kRed, kGreen, 0);
+alignas(16) const __m128i gWeightsGRGR = MM_SET_4_epi16(kRed, kGreen, kRed, kGreen);
+alignas(16) const __m128i gWeightsGBGB = MM_SET_4_epi16(kBlue, kGreen, kBlue, kGreen);
+
+#undef MM_SET_4_epi16
 
 alignas(32) const int gRotationsMode4[8] = { 0 + 4, 0, 2 + 4, 2, 1 + 4, 1, 3 + 4, 3 };
 alignas(16) const int gRotationsMode5[4] = { 0, 2, 1, 3 };
