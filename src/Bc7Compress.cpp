@@ -491,9 +491,11 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 
 		if (mse_alpha > 0)
 		{
+			const double weightAlpha = bc7Core.pGetWeightAlpha();
+
 			PRINTF("      SubTexture A qMSE = %.1f, qPSNR = %f, SSIM_4x4 = %.8f",
-				(1.0 / gWeightAlpha) * mse_alpha / pixels,
-				10.0 * log((255.0 * 255.0) * gWeightAlpha * pixels / mse_alpha) / log(10.0),
+				(1.0 / weightAlpha) * mse_alpha / pixels,
+				10.0 * log((255.0 * 255.0) * weightAlpha * pixels / mse_alpha) / log(10.0),
 				ssim.Alpha * 16.0 / pixels);
 		}
 		else
@@ -503,9 +505,11 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 
 		if (mse_color > 0)
 		{
+			const double weightColor = bc7Core.pGetWeightColor();
+
 			PRINTF("      SubTexture RGB qMSE = %.1f, qPSNR = %f, wSSIM_4x4 = %.8f",
-				(1.0 / gWeightColor) * mse_color / pixels,
-				10.0 * log((255.0 * 255.0) * gWeightColor * pixels / mse_color) / log(10.0),
+				(1.0 / weightColor) * mse_color / pixels,
+				10.0 * log((255.0 * 255.0) * weightColor * pixels / mse_color) / log(10.0),
 				ssim.Color * 16.0 / pixels);
 		}
 		else

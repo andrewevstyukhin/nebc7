@@ -311,11 +311,15 @@ using PInitTables = void(*)(bool doDraft, bool doNormal, bool doSlow, bool linea
 
 using PBlockKernel = void(*)(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept;
 
+using PGetWeight = int(*)() noexcept;
+
 struct IBc7Core
 {
 	PInitTables pInitTables;
 
 	PBlockKernel pDecompress, pCompress;
+
+	PGetWeight pGetWeightAlpha, pGetWeightColor;
 };
 
 //bool GetBc7Core(void* bc7Core);

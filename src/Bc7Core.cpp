@@ -1929,6 +1929,16 @@ static void CompressKernel(const WorkerItem* begin, const WorkerItem* end, int s
 	}
 }
 
+static int GetWeightAlpha() noexcept
+{
+	return gWeightAlpha;
+}
+
+static int GetWeightColor() noexcept
+{
+	return gWeightColor;
+}
+
 bool GetBc7Core(void* bc7Core)
 {
 	IBc7Core* p = reinterpret_cast<IBc7Core*>(bc7Core);
@@ -1937,6 +1947,9 @@ bool GetBc7Core(void* bc7Core)
 
 	p->pDecompress = &DecompressKernel;
 	p->pCompress = &CompressKernel;
+
+	p->pGetWeightAlpha = &GetWeightAlpha;
+	p->pGetWeightColor = &GetWeightColor;
 
 	return true;
 }
