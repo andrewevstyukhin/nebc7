@@ -51,7 +51,7 @@ namespace Mode6Index2 {
 		int error = static_cast<int>(area.Count - area.Active);
 		if (error)
 		{
-			error *= kAlpha;
+			error *= gWeightAlpha;
 			int v = gTableDeltas2_Value8[0][alpha];
 			error *= v * v;
 		}
@@ -143,23 +143,23 @@ namespace Mode6Index2 {
 			}
 			else
 			{
-				ch0.ComputeChannelLevelsReduced<7, pbits, false, gTableDeltas2Half_Value8>(area, 0, kAlpha, water);
+				ch0.ComputeChannelLevelsReduced<7, pbits, false, gTableDeltas2Half_Value8>(area, 0, gWeightAlpha, water);
 			}
 			int min0 = ch0.MinErr;
 			if (min0 >= water)
 				return false;
 
-			ch1.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas2Half_Value8>(area, 1, kGreen, water - min0);
+			ch1.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas2Half_Value8>(area, 1, gWeightGreen, water - min0);
 			int min1 = ch1.MinErr;
 			if (min0 + min1 >= water)
 				return false;
 
-			ch2.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas2Half_Value8>(area, 2, kRed, water - min0 - min1);
+			ch2.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas2Half_Value8>(area, 2, gWeightRed, water - min0 - min1);
 			int min2 = ch2.MinErr;
 			if (min0 + min1 + min2 >= water)
 				return false;
 
-			ch3.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas2Half_Value8>(area, 3, kBlue, water - min0 - min1 - min2);
+			ch3.ComputeChannelLevelsReduced<7, pbits, true, gTableDeltas2Half_Value8>(area, 3, gWeightBlue, water - min0 - min1 - min2);
 			int min3 = ch3.MinErr;
 			if (min0 + min1 + min2 + min3 >= water)
 				return false;

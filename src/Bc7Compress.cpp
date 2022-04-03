@@ -273,6 +273,7 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 	bool flip = true;
 	bool mask = true;
 	int border = 1;
+	bool linearData = false;
 
 	const char* src_name = nullptr;
 	const char* dst_name = nullptr;
@@ -300,13 +301,6 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 				doSlow = false;
 				continue;
 			}
-			else if (strcmp(arg, "/normal") == 0)
-			{
-				doDraft = true;
-				doNormal = true;
-				doSlow = false;
-				continue;
-			}
 			else if (strcmp(arg, "/slow") == 0)
 			{
 				doDraft = true;
@@ -327,6 +321,12 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 			else if (strcmp(arg, "/retina") == 0)
 			{
 				border = 2;
+				continue;
+			}
+			else if (strcmp(arg, "/data") == 0)
+			{
+				mask = false;
+				linearData = true;
 				continue;
 			}
 			else if (strcmp(arg, "/debug") == 0)
@@ -462,7 +462,7 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 	head[22] = flip ? 0x00753Du : 0x00643Du;
 	head[23] = static_cast<uint32_t>(Size); // imageSize
 
-	bc7Core.pInitTables(doDraft, doNormal, doSlow);
+	bc7Core.pInitTables(doDraft, doNormal, doSlow, linearData);
 
 	if ((dst_name != nullptr) && dst_name[0])
 	{
@@ -492,8 +492,8 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 		if (mse_alpha > 0)
 		{
 			PRINTF("      SubTexture A qMSE = %.1f, qPSNR = %f, SSIM_4x4 = %.8f",
-				(1.0 / kAlpha) * mse_alpha / pixels,
-				10.0 * log((255.0 * 255.0) * kAlpha * pixels / mse_alpha) / log(10.0),
+				(1.0 / gWeightAlpha) * mse_alpha / pixels,
+				10.0 * log((255.0 * 255.0) * gWeightAlpha * pixels / mse_alpha) / log(10.0),
 				ssim.Alpha * 16.0 / pixels);
 		}
 		else
@@ -503,17 +503,10 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 
 		if (mse_color > 0)
 		{
-#if defined(OPTION_LINEAR)
-			PRINTF("      SubTexture RGB qMSE = %.1f, qPSNR = %f, SSIM_4x4 = %.8f",
-				(1.0 / kColor) * mse_color / pixels,
-				10.0 * log((255.0 * 255.0) * kColor * pixels / mse_color) / log(10.0),
-				ssim.Color * 16.0 / pixels);
-#else
 			PRINTF("      SubTexture RGB qMSE = %.1f, qPSNR = %f, wSSIM_4x4 = %.8f",
-				(1.0 / kColor) * mse_color / pixels,
-				10.0 * log((255.0 * 255.0) * kColor * pixels / mse_color) / log(10.0),
+				(1.0 / gWeightColor) * mse_color / pixels,
+				10.0 * log((255.0 * 255.0) * gWeightColor * pixels / mse_color) / log(10.0),
 				ssim.Color * 16.0 / pixels);
-#endif
 		}
 		else
 		{
@@ -577,8 +570,9 @@ int __cdecl main(int argc, char* argv[])
 
 	if (argc < 2)
 	{
-		PRINTF("Usage: Bc7Compress [/draft | /normal | /slow] [/retina] [/nomask] [/noflip] src");
-		PRINTF("                   [dst.ktx] [/debug result.png] [/map partitions.png] [/bad bad.png]");
+		PRINTF("Usage: Bc7Compress [/retina] [/nomask] [/noflip] [/data] src");
+		PRINTF("                   [/draft | /slow] [dst.ktx]");
+		PRINTF("                   [/debug result.png] [/map partitions.png] [/bad bad.png]");
 		return 1;
 	}
 

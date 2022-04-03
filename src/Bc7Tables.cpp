@@ -777,37 +777,72 @@ void InitLevels() noexcept
 }
 
 
-// https://stackoverflow.com/questions/35268036/how-can-i-set-m128i-without-using-of-any-sse-instruction
-#if defined(__clang__)
-#define MM_SET_4_epi16(w, z, y, x) { \
-	static_cast<long long>(uint64_t(uint16_t(x)) + (uint64_t(uint16_t(y)) << 16) + (uint64_t(uint16_t(z)) << 32) + (uint64_t(uint16_t(w)) << 48)), \
-	static_cast<long long>(uint64_t(uint16_t(x)) + (uint64_t(uint16_t(y)) << 16) + (uint64_t(uint16_t(z)) << 32) + (uint64_t(uint16_t(w)) << 48)) }
-#elif defined(_MSC_VER)
-#define MM_SET_4_epi16(w, z, y, x) { \
-	char(uint16_t(x) & 0xFFu), char(uint16_t(x) >> 8), \
-	char(uint16_t(y) & 0xFFu), char(uint16_t(y) >> 8), \
-	char(uint16_t(z) & 0xFFu), char(uint16_t(z) >> 8), \
-	char(uint16_t(w) & 0xFFu), char(uint16_t(w) >> 8), \
-	char(uint16_t(x) & 0xFFu), char(uint16_t(x) >> 8), \
-	char(uint16_t(y) & 0xFFu), char(uint16_t(y) >> 8), \
-	char(uint16_t(z) & 0xFFu), char(uint16_t(z) >> 8), \
-	char(uint16_t(w) & 0xFFu), char(uint16_t(w) >> 8) }
-#else
-#define MM_SET_4_epi16(w, z, y, x) _mm_set_epi16((w), (z), (y), (x), (w), (z), (y), (x))
+int gWeightAlpha, gWeightGreen, gWeightRed, gWeightBlue;
+int gWeightColor, gWeightColorAlpha;
+alignas(16) __m128i gWeights32;
+alignas(16) __m128i gWeightsAGRB, gWeightsAGR, gWeightsAGB, gWeightsAG, gWeightsAR, gWeightsAGAG, gWeightsARAR;
+alignas(16) __m128i gWeightsGRB, gWeightsGRGR, gWeightsGBGB;
+#if !defined(OPTION_LIBRARY)
+alignas(16) __m128i gGlitch;
 #endif
 
-alignas(16) const __m128i gWeightsAGRB = MM_SET_4_epi16(kBlue, kRed, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsAGR = MM_SET_4_epi16(0, kRed, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsAGB = MM_SET_4_epi16(kBlue, 0, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsAG = MM_SET_4_epi16(0, 0, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsAR = MM_SET_4_epi16(0, kRed, 0, kAlpha);
-alignas(16) const __m128i gWeightsAGAG = MM_SET_4_epi16(kGreen, kAlpha, kGreen, kAlpha);
-alignas(16) const __m128i gWeightsARAR = MM_SET_4_epi16(kRed, kAlpha, kRed, kAlpha);
-alignas(16) const __m128i gWeightsGRB = MM_SET_4_epi16(kBlue, kRed, kGreen, 0);
-alignas(16) const __m128i gWeightsGRGR = MM_SET_4_epi16(kRed, kGreen, kRed, kGreen);
-alignas(16) const __m128i gWeightsGBGB = MM_SET_4_epi16(kBlue, kGreen, kBlue, kGreen);
+void InitWeights(bool linearData) noexcept
+{
+	if (linearData)
+	{
+		gWeightAlpha = 1;
+		gWeightGreen = 1;
+		gWeightRed = 1;
+		gWeightBlue = 1;
+	}
+	else
+	{
+		gWeightAlpha = kWeightLimit;
+		// http://www.brucelindbloom.com/index.html?WorkingSpaceInfo.html sRGB
+		gWeightGreen = 715;
+		gWeightRed = 213;
+		gWeightBlue = 72;
+	}
 
-#undef MM_SET_4_epi16
+	gWeightColor = gWeightGreen + gWeightRed + gWeightBlue;
+	gWeightColorAlpha = gWeightColor + gWeightAlpha;
+
+	__m128i mweights16 = _mm_setzero_si128();
+	mweights16 = _mm_insert_epi16(mweights16, gWeightAlpha, 0);
+	mweights16 = _mm_insert_epi16(mweights16, gWeightGreen, 1);
+	mweights16 = _mm_insert_epi16(mweights16, gWeightRed, 2);
+	mweights16 = _mm_insert_epi16(mweights16, gWeightBlue, 3);
+	mweights16 = _mm_unpacklo_epi64(mweights16, mweights16);
+
+	_mm_store_si128(&gWeights32, _mm_unpacklo_epi16(mweights16, _mm_setzero_si128()));
+	_mm_store_si128(&gWeightsAGRB, mweights16);
+	_mm_store_si128(&gWeightsAGR, _mm_and_si128(_mm_set_epi16(0, -1, -1, -1, 0, -1, -1, -1), mweights16));
+	_mm_store_si128(&gWeightsAGB, _mm_and_si128(_mm_set_epi16(-1, 0, -1, -1, -1, 0, -1, -1), mweights16));
+	_mm_store_si128(&gWeightsAG, _mm_and_si128(_mm_set_epi16(0, 0, -1, -1, 0, 0, -1, -1), mweights16));
+	_mm_store_si128(&gWeightsAR, _mm_and_si128(_mm_set_epi16(0, -1, 0, -1, 0, -1, 0, -1), mweights16));
+	_mm_store_si128(&gWeightsAGAG, _mm_shuffle_epi32(mweights16, 0));
+	_mm_store_si128(&gWeightsARAR, _mm_shufflehi_epi16(_mm_shufflelo_epi16(mweights16, _MM_SHUFFLE(2, 0, 2, 0)), _MM_SHUFFLE(2, 0, 2, 0)));
+
+	_mm_store_si128(&gWeightsGRB, _mm_and_si128(_mm_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0), mweights16));
+	_mm_store_si128(&gWeightsGRGR, _mm_shufflehi_epi16(_mm_shufflelo_epi16(mweights16, _MM_SHUFFLE(2, 1, 2, 1)), _MM_SHUFFLE(2, 1, 2, 1)));
+	_mm_store_si128(&gWeightsGBGB, _mm_shufflehi_epi16(_mm_shufflelo_epi16(mweights16, _MM_SHUFFLE(3, 1, 3, 1)), _MM_SHUFFLE(3, 1, 3, 1)));
+
+#if !defined(OPTION_LIBRARY)
+	if (linearData)
+	{
+		_mm_store_si128(&gGlitch, _mm_set1_epi8(16 - 129));
+	}
+	else
+	{
+		_mm_store_si128(&gGlitch, _mm_set_epi8(
+			20 - 129, 16 - 129, 12 - 129, 16 - 129,
+			20 - 129, 16 - 129, 12 - 129, 16 - 129,
+			20 - 129, 16 - 129, 12 - 129, 16 - 129,
+			20 - 129, 16 - 129, 12 - 129, 16 - 129));
+	}
+#endif
+}
+
 
 alignas(32) const int gRotationsMode4[8] = { 0 + 4, 0, 2 + 4, 2, 1 + 4, 1, 3 + 4, 3 };
 alignas(16) const int gRotationsMode5[4] = { 0, 2, 1, 3 };

@@ -1,5 +1,6 @@
 
 #include "pch.h"
+#include "Bc7Tables.h"
 #include "Bc7Pca.h"
 
 #if defined(OPTION_PCA)
@@ -127,7 +128,11 @@ static INLINED int PrincipalComponentAnalysis(const Area& area)
 		msum = _mm_add_epi32(msum, md);
 	}
 
-	const __m128i mweights = _mm_set_epi32(kBlue, kRed, kGreen, kAlpha * int(C == 4));
+	__m128i mweights = _mm_load_si128(&gWeights32);
+	if constexpr (C < 4)
+	{
+		mweights = _mm_insert_epi16(mweights, 0, 0);
+	}
 
 	msum = _mm_mullo_epi32(msum, mweights);
 
@@ -146,7 +151,7 @@ int PrincipalComponentAnalysis4(const Area& area)
 
 void InitPCA() noexcept
 {
-	__m128 mk = _mm_set_ps(kBlue, kRed, kGreen, kAlpha);
+	__m128 mk = _mm_cvtepi32_ps(_mm_load_si128(&gWeights32));
 
 	mk = _mm_sqrt_ps(mk);
 

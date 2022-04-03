@@ -539,7 +539,7 @@ namespace Mode5 {
 			}
 		}
 
-		return BlockError(errorAlpha * kAlpha, error3 + error1);
+		return BlockError(errorAlpha * gWeightAlpha, error3 + error1);
 	}
 
 	void FinalPackBlock(uint8_t output[16], Cell& input) noexcept
@@ -635,11 +635,11 @@ namespace Mode5 {
 			{
 				if (rotation == 0)
 				{
-					chA.ComputeChannelLevelsReduced<8, -1, false, gTableDeltas2_Value8, true>(area, 0, kAlpha, water);
+					chA.ComputeChannelLevelsReduced<8, -1, false, gTableDeltas2_Value8, true>(area, 0, gWeightAlpha, water);
 				}
 				else
 				{
-					chA.ComputeChannelLevelsReduced<7, -1, false, gTableDeltas2_Value7>(area, 0, kAlpha, water);
+					chA.ComputeChannelLevelsReduced<7, -1, false, gTableDeltas2_Value7>(area, 0, gWeightAlpha, water);
 				}
 			}
 			int minA = chA.MinErr;
@@ -648,11 +648,11 @@ namespace Mode5 {
 
 			if (rotation == 2)
 			{
-				chG.ComputeChannelLevelsReduced<8, -1, true, gTableDeltas2_Value8, true>(area, 1, kGreen, water - minA);
+				chG.ComputeChannelLevelsReduced<8, -1, true, gTableDeltas2_Value8, true>(area, 1, gWeightGreen, water - minA);
 			}
 			else
 			{
-				chG.ComputeChannelLevelsReduced<7, -1, true, gTableDeltas2_Value7>(area, 1, kGreen, water - minA);
+				chG.ComputeChannelLevelsReduced<7, -1, true, gTableDeltas2_Value7>(area, 1, gWeightGreen, water - minA);
 			}
 			int minG = chG.MinErr;
 			if (minA + minG >= water)
@@ -660,11 +660,11 @@ namespace Mode5 {
 
 			if (rotation == 1)
 			{
-				chR.ComputeChannelLevelsReduced<8, -1, true, gTableDeltas2_Value8, true>(area, 2, kRed, water - minA - minG);
+				chR.ComputeChannelLevelsReduced<8, -1, true, gTableDeltas2_Value8, true>(area, 2, gWeightRed, water - minA - minG);
 			}
 			else
 			{
-				chR.ComputeChannelLevelsReduced<7, -1, true, gTableDeltas2_Value7>(area, 2, kRed, water - minA - minG);
+				chR.ComputeChannelLevelsReduced<7, -1, true, gTableDeltas2_Value7>(area, 2, gWeightRed, water - minA - minG);
 			}
 			int minR = chR.MinErr;
 			if (minA + minG + minR >= water)
@@ -672,11 +672,11 @@ namespace Mode5 {
 
 			if (rotation == 3)
 			{
-				chB.ComputeChannelLevelsReduced<8, -1, true, gTableDeltas2_Value8, true>(area, 3, kBlue, water - minA - minG - minR);
+				chB.ComputeChannelLevelsReduced<8, -1, true, gTableDeltas2_Value8, true>(area, 3, gWeightBlue, water - minA - minG - minR);
 			}
 			else
 			{
-				chB.ComputeChannelLevelsReduced<7, -1, true, gTableDeltas2_Value7>(area, 3, kBlue, water - minA - minG - minR);
+				chB.ComputeChannelLevelsReduced<7, -1, true, gTableDeltas2_Value7>(area, 3, gWeightBlue, water - minA - minG - minR);
 			}
 			int minB = chB.MinErr;
 			if (minA + minG + minR + minB >= water)

@@ -667,6 +667,6 @@ static INLINED auto ComputeSubsetTable2(const Area& area, __m128i mc, uint64_t& 
 			errorAlpha += da * da;
 		}
 
-		return BlockError(errorAlpha * kAlpha, error);
+		return BlockError(errorAlpha * gWeightAlpha, error);
 	}
 }

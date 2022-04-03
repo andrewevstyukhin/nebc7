@@ -43,7 +43,7 @@ static INLINED int ComputeOpaqueAlphaError(const Area& area) noexcept
 			error += da * da;
 		}
 
-		error *= kAlpha;
+		error *= gWeightAlpha;
 	}
 
 	return error;
@@ -207,7 +207,7 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 			{
 				bool changes = false;
 
-				int64_t b = covBG * kGreen + covRB * kRed;
+				int64_t b = covBG * gWeightGreen + covRB * gWeightRed;
 				if (b < 0)
 				{
 					mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
@@ -218,7 +218,7 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 					changes = true;
 				}
 
-				int64_t r = covGR * kGreen + covRB * kBlue;
+				int64_t r = covGR * gWeightGreen + covRB * gWeightBlue;
 				if (r < 0)
 				{
 					mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(3, 2, 0, 1));
@@ -354,7 +354,7 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 		{
 			bool changes = false;
 
-			int64_t b = covBG * kGreen + covRB * kRed;
+			int64_t b = covBG * gWeightGreen + covRB * gWeightRed;
 			if (b < 0)
 			{
 				mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
@@ -365,7 +365,7 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 				changes = true;
 			}
 
-			int64_t r = covGR * kGreen + covRB * kBlue;
+			int64_t r = covGR * gWeightGreen + covRB * gWeightBlue;
 			if (r < 0)
 			{
 				mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(3, 2, 0, 1));
@@ -447,7 +447,7 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 		{
 			bool changes = false;
 
-			int64_t b = covAB * kAlpha + covBG * kGreen + covRB * kRed;
+			int64_t b = covAB * gWeightAlpha + covBG * gWeightGreen + covRB * gWeightRed;
 			if (b < 0)
 			{
 				mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
@@ -459,7 +459,7 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 				changes = true;
 			}
 
-			int64_t r = covAR * kAlpha + covGR * kGreen + covRB * kBlue;
+			int64_t r = covAR * gWeightAlpha + covGR * gWeightGreen + covRB * gWeightBlue;
 			if (r < 0)
 			{
 				mbounds = _mm_shufflehi_epi16(mbounds, _MM_SHUFFLE(3, 2, 0, 1));
@@ -471,7 +471,7 @@ NOTINLINED void MakeAreaFromCell(Area& area, const Cell& cell, const size_t coun
 				changes = true;
 			}
 
-			int64_t g = covAG * kAlpha + covGR * kRed + covBG * kBlue;
+			int64_t g = covAG * gWeightAlpha + covGR * gWeightRed + covBG * gWeightBlue;
 			if (g < 0)
 			{
 				mbounds = _mm_shufflelo_epi16(mbounds, _MM_SHUFFLE(2, 3, 1, 0));
@@ -689,7 +689,7 @@ NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) no
 template<int M>
 INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulations& state) noexcept
 {
-	const int denoiseStep = (area.IsOpaque ? kDenoiseStep * kColor : kDenoiseStep * (kColor + kAlpha));
+	const int denoiseStep = kDenoiseStep * (area.IsOpaque ? gWeightColor : gWeightColorAlpha);
 
 	int good = 1;
 	{
@@ -887,7 +887,7 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 		__m256i vpixel = _mm256_broadcastq_epi64(mpacked);
 
-		__m256i vbottom = _mm256_set1_epi32(kBlockMaximalAlphaError + kBlockMaximalColorError);
+		__m256i vbottom = _mm256_set1_epi32(kBlockMaximalColorAlphaError);
 
 		if constexpr (M == 16)
 		{
@@ -1107,7 +1107,7 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 		__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
 
-		uint64_t bottom = (kBlockMaximalAlphaError + kBlockMaximalColorError) * ((1uLL << 32) + 1uLL);
+		constexpr uint64_t bottom = kBlockMaximalColorAlphaError * ((1uLL << 32) + 1uLL);
 
 		for (int j = 0; j < M; j += 2)
 		{
@@ -1282,7 +1282,7 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 
 	//
 
-	double best = -(kAlpha + kColor + 0.1);
+	double best = -(gWeightColorAlpha + 0.1);
 
 	for (;;)
 	{
@@ -1482,7 +1482,7 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 
 		if (gDoDraft)
 		{
-			const int denoiseStep = static_cast<int>(input.Area1.Active) * ((input.Area1.IsOpaque ? kDenoiseStep * kColor : kDenoiseStep * (kColor + kAlpha)) >> (kDenoise + kDenoise));
+			const int denoiseStep = static_cast<int>(input.Area1.Active) * ((kDenoiseStep * (input.Area1.IsOpaque ? gWeightColor : gWeightColorAlpha)) >> (kDenoise + kDenoise));
 			input.DenoiseStep = denoiseStep;
 
 			input.OpaqueAlphaError = ComputeOpaqueAlphaError(input.Area1);
@@ -1818,11 +1818,17 @@ static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
 	return _mm_shuffle_epi8(mc, mrot);
 }
 
-static void InitTables(bool doDraft, bool doNormal, bool doSlow)
+static void InitTables(bool doDraft, bool doNormal, bool doSlow, bool linearData)
 {
 	gDoDraft = doDraft;
 	gDoNormal = doNormal;
 	gDoSlow = doSlow;
+
+	InitWeights(linearData);
+
+#if defined(OPTION_PCA)
+	InitPCA();
+#endif
 
 	{
 		static bool gsInited = false;
@@ -1837,10 +1843,6 @@ static void InitTables(bool doDraft, bool doNormal, bool doSlow)
 	InitShrinked();
 	InitSelection();
 	InitLevels();
-
-#if defined(OPTION_PCA)
-	InitPCA();
-#endif
 }
 
 static void DecompressKernel(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept

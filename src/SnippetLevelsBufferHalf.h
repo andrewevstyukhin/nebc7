@@ -14,7 +14,7 @@ template<int MaxSize>
 class LevelsBufferHalf final
 {
 public:
-	int MinErr = kBlockMaximalAlphaError + kBlockMaximalColorError;
+	int MinErr = kBlockMaximalColorAlphaError;
 	int Count = 0;
 
 	Node Err[MaxSize];

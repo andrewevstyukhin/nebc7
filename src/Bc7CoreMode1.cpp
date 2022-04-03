@@ -226,17 +226,17 @@ namespace Mode1 {
 		template<int pbits>
 		INLINED bool InitLevels(const Area& area, const int water, const Estimation& estimation) noexcept
 		{
-			ch1.ComputeChannelLevelsReduced<6, pbits, false, gTableDeltas3_Value7Shared>(area, 1, kGreen, water - estimation.ch2 - estimation.ch3);
+			ch1.ComputeChannelLevelsReduced<6, pbits, false, gTableDeltas3_Value7Shared>(area, 1, gWeightGreen, water - estimation.ch2 - estimation.ch3);
 			int min1 = ch1.MinErr;
 			if (min1 >= water)
 				return false;
 
-			ch2.ComputeChannelLevelsReduced<6, pbits, false, gTableDeltas3_Value7Shared>(area, 2, kRed, water - min1 - estimation.ch3);
+			ch2.ComputeChannelLevelsReduced<6, pbits, false, gTableDeltas3_Value7Shared>(area, 2, gWeightRed, water - min1 - estimation.ch3);
 			int min2 = ch2.MinErr;
 			if (min1 + min2 >= water)
 				return false;
 
-			ch3.ComputeChannelLevelsReduced<6, pbits, false, gTableDeltas3_Value7Shared>(area, 3, kBlue, water - min1 - min2);
+			ch3.ComputeChannelLevelsReduced<6, pbits, false, gTableDeltas3_Value7Shared>(area, 3, gWeightBlue, water - min1 - min2);
 			int min3 = ch3.MinErr;
 			if (min1 + min2 + min3 >= water)
 				return false;
@@ -445,19 +445,19 @@ namespace Mode1 {
 		int error = 0;
 		if (error < water)
 		{
-			int level1 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared>(area, 1, kGreen, water - error);
+			int level1 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared>(area, 1, gWeightGreen, water - error);
 			estimation.ch1 = level1;
 			error += level1;
 
 			if (error < water)
 			{
-				int level2 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared>(area, 2, kRed, water - error);
+				int level2 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared>(area, 2, gWeightRed, water - error);
 				estimation.ch2 = level2;
 				error += level2;
 
 				if (error < water)
 				{
-					int level3 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared>(area, 3, kBlue, water - error);
+					int level3 = LevelsMinimum::EstimateChannelLevelsReduced<7, false, gTableDeltas3_Value7Shared, gTableCuts3_Value7Shared>(area, 3, gWeightBlue, water - error);
 					estimation.ch3 = level3;
 					error += level3;
 

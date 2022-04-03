@@ -58,8 +58,14 @@ alignas(64) extern uint8_t gTableDeltas2Half_Value8[0x100][0x100 * 0x80];
 void InitLevels() noexcept;
 
 
-alignas(16) extern const __m128i gWeightsAGRB, gWeightsAGR, gWeightsAGB, gWeightsAG, gWeightsAR, gWeightsAGAG, gWeightsARAR;
-alignas(16) extern const __m128i gWeightsGRB, gWeightsGRGR, gWeightsGBGB;
+alignas(16) extern __m128i gWeights32;
+alignas(16) extern __m128i gWeightsAGRB, gWeightsAGR, gWeightsAGB, gWeightsAG, gWeightsAR, gWeightsAGAG, gWeightsARAR;
+alignas(16) extern __m128i gWeightsGRB, gWeightsGRGR, gWeightsGBGB;
+#if !defined(OPTION_LIBRARY)
+alignas(16) extern __m128i gGlitch;
+#endif
+
+void InitWeights(bool linearData) noexcept;
 
 
 alignas(32) extern const int gRotationsMode4[8];

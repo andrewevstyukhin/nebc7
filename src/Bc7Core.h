@@ -2,8 +2,8 @@
 
 #include "pch.h"
 
-constexpr int kBlockMaximalAlphaError = 16 * (255 >> kDenoise) * (255 >> kDenoise) * kAlpha + 1;
-constexpr int kBlockMaximalColorError = 16 * (255 >> kDenoise) * (255 >> kDenoise) * kColor + 1;
+constexpr int kBlockMaximalColorError = 16 * (255 >> kDenoise) * (255 >> kDenoise) * kWeightLimit + 1;
+constexpr int kBlockMaximalColorAlphaError = kBlockMaximalColorError * 2;
 
 struct BlockError
 {
@@ -307,7 +307,7 @@ struct WorkerItem
 	}
 };
 
-using PInitTables = void(*)(bool doDraft, bool doNormal, bool doSlow);
+using PInitTables = void(*)(bool doDraft, bool doNormal, bool doSlow, bool linearData);
 
 using PBlockKernel = void(*)(const WorkerItem* begin, const WorkerItem* end, int stride, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim) noexcept;
 

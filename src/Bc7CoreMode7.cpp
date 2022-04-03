@@ -130,7 +130,7 @@ namespace Mode7 {
 		int error = static_cast<int>(area.Count - area.Active);
 		if (error)
 		{
-			error *= kAlpha;
+			error *= gWeightAlpha;
 			int v = gTableDeltas2_Value8[0][alpha];
 			error *= v * v;
 		}
@@ -243,23 +243,23 @@ namespace Mode7 {
 			}
 			else
 			{
-				ch0.ComputeChannelLevelsReduced<5, pbits, false, gTableDeltas2_Value6>(area, 0, kAlpha, water - estimation.ch1 - estimation.ch2 - estimation.ch3);
+				ch0.ComputeChannelLevelsReduced<5, pbits, false, gTableDeltas2_Value6>(area, 0, gWeightAlpha, water - estimation.ch1 - estimation.ch2 - estimation.ch3);
 			}
 			int min0 = ch0.MinErr;
 			if (min0 >= water)
 				return false;
 
-			ch1.ComputeChannelLevelsReduced<5, pbits, true, gTableDeltas2_Value6>(area, 1, kGreen, water - min0 - estimation.ch2 - estimation.ch3);
+			ch1.ComputeChannelLevelsReduced<5, pbits, true, gTableDeltas2_Value6>(area, 1, gWeightGreen, water - min0 - estimation.ch2 - estimation.ch3);
 			int min1 = ch1.MinErr;
 			if (min0 + min1 >= water)
 				return false;
 
-			ch2.ComputeChannelLevelsReduced<5, pbits, true, gTableDeltas2_Value6>(area, 2, kRed, water - min0 - min1 - estimation.ch3);
+			ch2.ComputeChannelLevelsReduced<5, pbits, true, gTableDeltas2_Value6>(area, 2, gWeightRed, water - min0 - min1 - estimation.ch3);
 			int min2 = ch2.MinErr;
 			if (min0 + min1 + min2 >= water)
 				return false;
 
-			ch3.ComputeChannelLevelsReduced<5, pbits, true, gTableDeltas2_Value6>(area, 3, kBlue, water - min0 - min1 - min2);
+			ch3.ComputeChannelLevelsReduced<5, pbits, true, gTableDeltas2_Value6>(area, 3, gWeightBlue, water - min0 - min1 - min2);
 			int min3 = ch3.MinErr;
 			if (min0 + min1 + min2 + min3 >= water)
 				return false;
@@ -514,7 +514,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError2++;
 #endif
-			int water1 = ComputeSubsetError2(area1, mc0, gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalAlphaError + kBlockMaximalColorError));
+			int water1 = ComputeSubsetError2(area1, mc0, gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalColorAlphaError));
 			water1 += ComputeSubsetTransparentError2(area1, _mm_extract_epi16(_mm_packus_epi16(mc0, mc0), 0));
 			if (water1)
 			{
@@ -534,7 +534,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError2++;
 #endif
-			int water2 = ComputeSubsetError2(area2, mc1, gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalAlphaError + kBlockMaximalColorError));
+			int water2 = ComputeSubsetError2(area2, mc1, gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalColorAlphaError));
 			water2 += ComputeSubsetTransparentError2(area2, _mm_extract_epi16(_mm_packus_epi16(mc1, mc1), 0));
 			if (water2)
 			{
@@ -592,7 +592,7 @@ namespace Mode7 {
 
 			if (!area.IsOpaque)
 			{
-				int level0 = LevelsMinimum::EstimateChannelLevelsReduced<6, false, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 0, kAlpha, water - error);
+				int level0 = LevelsMinimum::EstimateChannelLevelsReduced<6, false, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 0, gWeightAlpha, water - error);
 				estimation.ch0 = level0;
 				error += level0;
 			}
@@ -603,19 +603,19 @@ namespace Mode7 {
 
 			if (error < water)
 			{
-				int level1 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 1, kGreen, water - error);
+				int level1 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 1, gWeightGreen, water - error);
 				estimation.ch1 = level1;
 				error += level1;
 
 				if (error < water)
 				{
-					int level2 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 2, kRed, water - error);
+					int level2 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 2, gWeightRed, water - error);
 					estimation.ch2 = level2;
 					error += level2;
 
 					if (error < water)
 					{
-						int level3 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 3, kBlue, water - error);
+						int level3 = LevelsMinimum::EstimateChannelLevelsReduced<6, true, gTableDeltas2_Value6, gTableCuts2_Value6>(area, 3, gWeightBlue, water - error);
 						estimation.ch3 = level3;
 						error += level3;
 

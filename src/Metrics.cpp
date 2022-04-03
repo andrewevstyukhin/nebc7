@@ -1,5 +1,6 @@
 
 #include "pch.h"
+#include "Bc7Tables.h"
 #include "Metrics.h"
 #include "SnippetHorizontalSum4.h"
 
@@ -98,8 +99,7 @@ BlockError CompareBlocks(const Cell& cell1, const Cell& cell2) noexcept
 	}
 #endif
 
-	const __m128i mweights = _mm_set_epi32(kBlue, kRed, kGreen, kAlpha);
-	msum = _mm_mullo_epi32(msum, mweights);
+	msum = _mm_mullo_epi32(msum, _mm_load_si128(&gWeights32));
 
 	const int alpha = _mm_cvtsi128_si32(msum);
 
@@ -143,9 +143,9 @@ BlockSSIM CompareBlocksSSIM(const Cell& cell1, const Cell& cell2) noexcept
 	SSIM_FINAL(mssim_br, gSsim16k1L, gSsim16k2L);
 
 	double ssim =
-		_mm_cvtsd_f64(_mm_unpackhi_pd(mssim_ga, mssim_ga)) * kGreen +
-		_mm_cvtsd_f64(mssim_br) * kRed +
-		_mm_cvtsd_f64(_mm_unpackhi_pd(mssim_br, mssim_br)) * kBlue;
+		_mm_cvtsd_f64(_mm_unpackhi_pd(mssim_ga, mssim_ga)) * gWeightGreen +
+		_mm_cvtsd_f64(mssim_br) * gWeightRed +
+		_mm_cvtsd_f64(_mm_unpackhi_pd(mssim_br, mssim_br)) * gWeightBlue;
 
-	return BlockSSIM(_mm_cvtsd_f64(mssim_ga), ssim * (1.0 / kColor));
+	return BlockSSIM(_mm_cvtsd_f64(mssim_ga), ssim / gWeightColor);
 }

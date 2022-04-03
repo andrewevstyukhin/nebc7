@@ -1,5 +1,6 @@
 
 #include "pch.h"
+#include "Bc7Tables.h"
 #include "Worker.h"
 #include "Metrics.h"
 
@@ -308,20 +309,7 @@ static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
 bool DetectGlitches(const Cell& input, const Cell& output) noexcept
 {
 	const __m128i msign = _mm_set1_epi8(-0x80);
-
-#if defined(OPTION_LINEAR)
-
-	const __m128i mstep = _mm_set1_epi8(16 - 129);
-
-#else
-
-	const __m128i mstep = _mm_set_epi8(
-		20 - 129, 16 - 129, 12 - 129, 16 - 129,
-		20 - 129, 16 - 129, 12 - 129, 16 - 129,
-		20 - 129, 16 - 129, 12 - 129, 16 - 129,
-		20 - 129, 16 - 129, 12 - 129, 16 - 129);
-
-#endif
+	const __m128i mstep = _mm_load_si128(&gGlitch);
 
 	__m128i me = _mm_setzero_si128();
 
