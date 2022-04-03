@@ -1107,7 +1107,7 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 		__m128i mpixel = _mm_unpacklo_epi64(mpacked, mpacked);
 
-		constexpr uint64_t bottom = kBlockMaximalColorAlphaError * ((1uLL << 32) + 1uLL);
+		uint64_t bottom = kBlockMaximalColorAlphaError * ((1uLL << 32) + 1uLL);
 
 		for (int j = 0; j < M; j += 2)
 		{
