@@ -1491,7 +1491,7 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 
 			if (input.Error.Total > denoiseStep)
 			{
-				if constexpr (kDenoise || kDenoiseStep)
+				if constexpr ((kDenoise > 0) || (kDenoiseStep > 0))
 				{
 					Mode6Index2::CompressBlockFast(input);
 				}
@@ -1733,7 +1733,7 @@ static void CompressBlock(uint8_t output[16], Cell& input) noexcept
 			}
 		}
 
-#if defined(OPTION_COUNTERS)
+#if !defined(OPTION_LIBRARY) && defined(OPTION_COUNTERS)
 		if (DetectGlitches(input, temp))
 		{
 			gCompressBad++;

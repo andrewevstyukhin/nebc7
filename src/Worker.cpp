@@ -278,6 +278,8 @@ void ProcessTexture(uint8_t* dst, uint8_t* src_bgra, uint8_t* mask_agrb, int str
 	worker.Run(blockKernel, stride, pErrorAlpha, pErrorColor, pssim);
 }
 
+#if !defined(OPTION_LIBRARY)
+
 static ALWAYS_INLINED __m128i ConvertBgraToAgrb(__m128i mc) noexcept
 {
 #if defined(__SSSE3__)
@@ -459,3 +461,5 @@ void ShowBadBlocks(const uint8_t* src_bgra, const uint8_t* dst_bgra, uint8_t* ma
 		}
 	}
 }
+
+#endif

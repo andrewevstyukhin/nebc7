@@ -381,6 +381,7 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 	if (Max(src_texture_w, src_texture_h) > 16384)
 	{
 		PRINTF("Huge image %s", src_name);
+		delete[] src_image_bgra;
 		return 1;
 	}
 
@@ -502,6 +503,7 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 
 		SaveBc7(dst_name, (const uint8_t*)head, sizeof(head), dst_bc7, Size);
 
+#if !defined(OPTION_LIBRARY)
 		PackTexture(bc7Core, dst_bc7, dst_texture_bgra, mask_agrb, src_texture_stride, src_texture_w, src_texture_h, bc7Core.pDecompress, 16, mse_alpha, mse_color, ssim);
 
 		if ((bad_name != nullptr) && bad_name[0])
@@ -519,6 +521,10 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 
 			WriteImage(partitions_name, mask_agrb, src_texture_w, src_texture_h, flip);
 		}
+#else
+		(void)bad_name;
+		(void)partitions_name;
+#endif
 
 		delete[] dst_bc7;
 		delete[] mask_agrb;
@@ -526,7 +532,9 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 
 	if ((result_name != nullptr) && result_name[0])
 	{
+#if !defined(OPTION_LIBRARY)
 		WriteImage(result_name, dst_texture_bgra, src_texture_w, src_texture_h, flip);
+#endif
 	}
 
 	delete[] dst_texture_bgra;
