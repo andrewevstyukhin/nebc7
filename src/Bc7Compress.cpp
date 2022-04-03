@@ -32,57 +32,76 @@ static INLINED void FullMask(uint8_t* mask_agrb, int stride, int src_w, int src_
 
 static INLINED void ComputeAlphaMaskWithOutline(uint8_t* mask_agrb, const uint8_t* src_bgra, int stride, int src_w, int src_h, int radius)
 {
-	int full_w = 1 + radius + src_w + radius;
-	int full_h = 1 + radius + src_h + radius;
+	if (radius < 0)
+		return;
 
-	uint8_t* data = new uint8_t[full_h * full_w];
-	memset(data, 0, full_h * full_w);
+	const int full_w = radius + src_w + radius;
+
+	// row buffer to accumulate Y sum
+	int* buf = new int[full_w + size_t(15)];
+	memset(buf, 0, full_w * sizeof(int));
+
+	// add kernel rows except last
+	for (int y = 0; y < radius; y++)
+	{
+		const uint32_t* __restrict r = reinterpret_cast<const uint32_t*>(&src_bgra[y * stride]);
+
+		for (int i = 0; i < src_w; i++)
+		{
+			const uint8_t v = uint8_t((r[i] & 0xFF000000u) != 0);
+			buf[radius + i] += v;
+		}
+	}
 
 	for (int y = 0; y < src_h; y++)
 	{
-		const uint8_t* r = &src_bgra[y * stride + 3];
-		uint8_t* w = &data[(y + radius + 1) * full_w + (radius + 1)];
-
-		for (int x = 0; x < src_w; x++)
+		// add last kernel row
+		if (y + radius < src_h)
 		{
-			w[x] = uint8_t(r[x * 4] != 0);
+			const uint32_t* __restrict r = reinterpret_cast<const uint32_t*>(&src_bgra[(y + radius) * stride]);
+
+			for (int i = 0; i < src_w; i++)
+			{
+				const uint8_t v = uint8_t((r[i] & 0xFF000000u) != 0);
+				buf[radius + i] += v;
+			}
+		}
+
+		int32_t* __restrict p = reinterpret_cast<int32_t*>(&mask_agrb[y * stride]);
+
+		// filter current row
+		int sum = 0;
+		for (int i = 0; i < radius + radius; i++)
+		{
+			sum -= buf[i];
+		}
+		for (int i = 0; i < src_w; i++)
+		{
+			// include last kernel pixel
+			sum -= buf[radius + radius + i];
+
+			const int32_t v = (sum < 0) ? -1 : 0;
+
+			// remove first kernel pixel
+			sum += buf[i];
+
+			p[i] = v | 0xFF;
+		}
+
+		// subtract first kernel row
+		if (y >= radius)
+		{
+			const uint32_t* __restrict r = reinterpret_cast<const uint32_t*>(&src_bgra[(y - radius) * stride]);
+
+			for (int i = 0; i < src_w; i++)
+			{
+				const uint8_t v = uint8_t((r[i] & 0xFF000000u) != 0);
+				buf[radius + i] -= v;
+			}
 		}
 	}
 
-	int* sum = new int[full_h * full_w];
-	memset(sum, 0, full_h * full_w * sizeof(int));
-
-	int from_py = (radius + 1) * full_w;
-	int to_py = full_h * full_w;
-	for (int py = from_py; py < to_py; py += full_w)
-	{
-		int prev_py = py - full_w;
-
-		for (int x = radius + 1; x < full_w; x++)
-		{
-			sum[py + x] = sum[prev_py + x] - sum[prev_py + x - 1] + data[py + x] + sum[py + x - 1];
-		}
-	}
-
-	int a = radius + radius + 1;
-	for (int y = 0; y < src_h; y++)
-	{
-		int* w = (int*)&mask_agrb[y * stride];
-
-		const int* rL = &sum[y * full_w];
-		const int* rH = &sum[(y + a) * full_w];
-
-		for (int x = 0; x < src_w; x++, rL++, rH++)
-		{
-			int v = rH[a] - *rH + *rL - rL[a];
-
-			w[x] = (v != 0) ? -1 : 0xFF;
-		}
-	}
-
-	delete[] sum, sum = nullptr;
-
-	delete[] data, data = nullptr;
+	delete[] buf;
 }
 
 static void PackTexture(const IBc7Core& bc7Core, uint8_t* dst_bc7, uint8_t* src_bgra, uint8_t* mask_agrb, int stride, int src_w, int src_h, PBlockKernel blockKernel, size_t block_size, int64_t& pErrorAlpha, int64_t& pErrorColor, BlockSSIM& pssim)
@@ -412,6 +431,8 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 
 	uint8_t* dst_texture_bgra = new uint8_t[src_texture_h * src_texture_stride];
 
+	memcpy(dst_texture_bgra, src_texture_bgra, src_texture_h* src_texture_stride);
+
 	int Size = src_texture_h * src_texture_w;
 
 	// https://www.khronos.org/opengles/sdk/tools/KTX/file_format_spec/
@@ -442,8 +463,6 @@ int Bc7MainWithArgs(const IBc7Core& bc7Core, const std::vector<std::string>& arg
 	head[23] = static_cast<uint32_t>(Size); // imageSize
 
 	bc7Core.pInitTables(doDraft, doNormal, doSlow);
-
-	memcpy(dst_texture_bgra, src_texture_bgra, src_texture_h * src_texture_stride);
 
 	if ((dst_name != nullptr) && dst_name[0])
 	{
