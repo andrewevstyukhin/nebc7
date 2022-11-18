@@ -17,32 +17,6 @@ namespace Mode5 {
 	static std::atomic_int gComputeSubsetError2[4], gComputeSubsetError2AG[4], gComputeSubsetError2AR[4], gComputeSubsetError2AGR[4], gComputeSubsetError2AGB[4];
 #endif
 
-	static ALWAYS_INLINED __m128i GetRotationShuffle(int rotation) noexcept
-	{
-		__m128i mrot = _mm_set_epi8(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
-
-		if (rotation & 2)
-		{
-			if (rotation & 1)
-			{
-				mrot = _mm_shuffle_epi32(mrot, _MM_SHUFFLE(0, 2, 1, 3));
-			}
-			else
-			{
-				mrot = _mm_shuffle_epi32(mrot, _MM_SHUFFLE(3, 2, 0, 1));
-			}
-		}
-		else
-		{
-			if (rotation & 1)
-			{
-				mrot = _mm_shuffle_epi32(mrot, _MM_SHUFFLE(3, 0, 1, 2));
-			}
-		}
-
-		return mrot;
-	}
-
 	static ALWAYS_INLINED __m128i GetRotationShuffleNarrow(int rotation) noexcept
 	{
 		__m128i mrot = _mm_set_epi8(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
@@ -72,10 +46,10 @@ namespace Mode5 {
 		return mrot;
 	}
 
-	static INLINED void DecompressSubset(__m128i mc, int* output, uint64_t dataColor, uint64_t dataAlpha, const int rotation) noexcept
+	static INLINED void DecompressSubset(__m128i mc, int* output, uint64_t dataColor, uint64_t dataAlpha, const __m128i mrot) noexcept
 	{
-		const __m128i mrot = GetRotationShuffleNarrow(rotation);
 		const __m128i mhalf = _mm_set1_epi16(32);
+		const __m128i mpack = _mm_shuffle_epi8(mrot, _mm_set_epi8(6, 4, 2, 0, 6, 4, 2, 0, 6, 4, 2, 0, 6, 4, 2, 0));
 
 		mc = _mm_packus_epi16(mc, mc);
 
@@ -88,9 +62,9 @@ namespace Mode5 {
 			mx = _mm_add_epi16(mx, mhalf);
 			mx = _mm_srli_epi16(mx, 6);
 
-			mx = _mm_shuffle_epi8(mx, mrot);
+			mx = _mm_shuffle_epi8(mx, mpack);
 
-			output[i] = _mm_cvtsi128_si32(_mm_packus_epi16(mx, mx));
+			output[i] = _mm_cvtsi128_si32(mx);
 		}
 	}
 
@@ -129,7 +103,7 @@ namespace Mode5 {
 		data1 = InsertZeroBit(data1, 1 + 31);
 		data1 = InsertZeroBit(data1, 1);
 
-		DecompressSubset(mc0, (int*)output.ImageRows_U8, data1, data1 >> 32, rotation);
+		DecompressSubset(mc0, (int*)output.ImageRows_U8, data1, data1 >> 32, GetRotationShuffleNarrow(rotation));
 
 		output.BestColor0 = mc0;
 		output.BestColor1 = _mm_setzero_si128();
@@ -166,12 +140,12 @@ namespace Mode5 {
 		*(uint64_t*)&output[8] = data1;
 	}
 
-	static INLINED int ComputeSubsetError2(const Area& area, __m128i mc, const __m128i mweights, const __m128i mwater, const int rotation) noexcept
+	static INLINED int ComputeSubsetError2(const Area& area, __m128i mc, const __m128i mweights, const __m128i mwater, const __m128i mrot) noexcept
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
 #if defined(OPTION_AVX512)
-		const __m512i wrot = _mm512_broadcast_i32x4(GetRotationShuffleNarrow(rotation));
+		const __m512i wrot = _mm512_broadcast_i32x4(mrot);
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m512i wweights = _mm512_broadcastq_epi64(mweights);
 
@@ -249,7 +223,7 @@ namespace Mode5 {
 
 		} while ((k -= 4) > 0);
 #elif defined(OPTION_AVX2)
-		const __m256i vrot = _mm256_broadcastsi128_si256(GetRotationShuffleNarrow(rotation));
+		const __m256i vrot = _mm256_broadcastsi128_si256(mrot);
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vweights = _mm256_broadcastq_epi64(mweights);
 
@@ -353,7 +327,6 @@ namespace Mode5 {
 
 		} while ((k -= 4) > 0);
 #else
-		const __m128i mrot = GetRotationShuffleNarrow(rotation);
 		const __m128i mhalf = _mm_set1_epi16(32);
 
 		mc = _mm_unpacklo_epi64(mc, mc);
@@ -427,10 +400,8 @@ namespace Mode5 {
 		return _mm_cvtsi128_si32(merrorBlock);
 	}
 
-	static INLINED BlockError ComputeSubsetTable2(const Area& area, __m128i mc, uint64_t& indicesColor, uint64_t& indicesAlpha, const int rotation) noexcept
+	static INLINED BlockError ComputeSubsetTable2(const Area& area, __m128i mc, uint64_t& indicesColor, uint64_t& indicesAlpha, const int rotation, const __m128i mrot) noexcept
 	{
-		const __m128i mrot = GetRotationShuffleNarrow(rotation);
-
 		mc = _mm_packus_epi16(mc, mc);
 
 		const __m128i mmask3 = _mm_shuffle_epi8(_mm_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0), mrot);
@@ -575,13 +546,14 @@ namespace Mode5 {
 	void FinalPackBlock(uint8_t output[16], Cell& input) noexcept
 	{
 		const int rotation = static_cast<int>(input.BestParameter);
+		const __m128i mrot = GetRotationShuffleNarrow(rotation);
 
 		Area& area = input.Area1;
 
 		__m128i mc = input.BestColor0;
 
 		uint64_t indicesColor = 0, indicesAlpha = 0;
-		input.Error = ComputeSubsetTable2(area, mc, indicesColor, indicesAlpha, rotation);
+		input.Error = ComputeSubsetTable2(area, mc, indicesColor, indicesAlpha, rotation, mrot);
 
 		__m128i mcolor = mc;
 		AreaReduceTable2(area, mcolor, indicesColor);
@@ -594,26 +566,24 @@ namespace Mode5 {
 		ComposeBlock(output, mc, indicesColor, indicesAlpha, rotation);
 	}
 
-	static INLINED int CompressSubsetFast(const Area& area, __m128i& mc, int water, const int rotation) noexcept
+	static INLINED int CompressSubsetFast(const Area& area, __m128i& mc, int water, const __m128i mrot) noexcept
 	{
 		mc = area.Bounds_U16;
 
-		const __m128i mrot = GetRotationShuffle(rotation);
+		mc = _mm_packus_epi16(mc, mc);
+
 		mc = _mm_shuffle_epi8(mc, mrot);
 
-		__m128i ma = mc;
+		const __m128i mmask = _mm_set_epi8(1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0);
 
-		const __m128i mh7 = _mm_set1_epi16(0xFE);
-		mc = _mm_and_si128(mc, mh7);
+		__m128i mcc = _mm_srli_epi16(mc, 7);
 
-		mc = _mm_or_si128(mc, _mm_srli_epi16(mc, 7));
-
-		mc = _mm_blend_epi16(mc, ma, 3);
+		mc = _mm_or_si128(_mm_andnot_si128(mmask, mc), _mm_and_si128(mcc, mmask));
 
 #if defined(OPTION_COUNTERS)
 		gComputeSubsetError2[rotation]++;
 #endif
-		return ComputeSubsetError2(area, _mm_packus_epi16(mc, mc), gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
+		return ComputeSubsetError2(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water), mrot);
 	}
 
 	void CompressBlockFast(Cell& input) noexcept
@@ -631,14 +601,14 @@ namespace Mode5 {
 			{
 				Area& area = input.Area1;
 
-				error += CompressSubsetFast(area, mc, input.Error.Total - error, rotation);
+				error += CompressSubsetFast(area, mc, input.Error.Total - error, GetRotationShuffleNarrow(rotation));
 			}
 
 			if (input.Error.Total > error)
 			{
 				input.Error.Total = error - denoiseStep;
 
-				input.BestColor0 = mc;
+				input.BestColor0 = _mm_cvtepu8_epi16(mc);
 				input.BestParameter = rotation;
 				input.BestMode = 5;
 
@@ -766,7 +736,7 @@ namespace Mode5 {
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError2AG[rotation]++;
 #endif
-						eG = ComputeSubsetError2(area, mc, gWeightsAG, _mm_cvtsi32_si128(water - minR - minB), rotation);
+						eG = ComputeSubsetError2(area, mc, gWeightsAG, _mm_cvtsi32_si128(water - minR - minB), mrot);
 						if (eG + minR + minB >= water)
 							continue;
 					}
@@ -797,7 +767,7 @@ namespace Mode5 {
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError2AR[rotation]++;
 #endif
-								ear = ComputeSubsetError2(area, mc, gWeightsAR, _mm_cvtsi32_si128(water - minG - minB), rotation);
+								ear = ComputeSubsetError2(area, mc, gWeightsAR, _mm_cvtsi32_si128(water - minG - minB), mrot);
 								memAR[iR] = ear;
 							}
 							if (ear + minG + minB >= water)
@@ -820,7 +790,7 @@ namespace Mode5 {
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError2AGR[rotation]++;
 #endif
-							eR = ComputeSubsetError2(area, mc, gWeightsAGR, _mm_cvtsi32_si128(water - minB), rotation);
+							eR = ComputeSubsetError2(area, mc, gWeightsAGR, _mm_cvtsi32_si128(water - minB), mrot);
 							if (eR + minB >= water)
 								continue;
 						}
@@ -847,7 +817,7 @@ namespace Mode5 {
 #if defined(OPTION_COUNTERS)
 									gComputeSubsetError2AGB[rotation]++;
 #endif
-									eagb = ComputeSubsetError2(area, mc, gWeightsAGB, _mm_cvtsi32_si128(water - minR), rotation);
+									eagb = ComputeSubsetError2(area, mc, gWeightsAGB, _mm_cvtsi32_si128(water - minR), mrot);
 									memAGB[iB] = eagb;
 								}
 								if (eagb + minR >= water)
@@ -871,14 +841,14 @@ namespace Mode5 {
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError2[rotation]++;
 #endif
-								eB = ComputeSubsetError2(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
+								eB = ComputeSubsetError2(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water), mrot);
 							}
 
 							if (water > eB)
 							{
 								water = eB;
 
-								best_color = _mm_cvtepu8_epi16(mc);
+								best_color = mc;
 							}
 						}
 					}
@@ -921,7 +891,7 @@ namespace Mode5 {
 	{
 		const int rotation = static_cast<int>(input.BestParameter);
 
-		__m128i mc = input.BestColor0;
+		__m128i mc = _mm_setzero_si128();
 
 		int error = 0;
 		{
@@ -934,7 +904,7 @@ namespace Mode5 {
 		{
 			input.Error.Total = error;
 
-			input.BestColor0 = mc;
+			input.BestColor0 = _mm_cvtepu8_epi16(mc);
 			//input.BestParameter = rotation;
 			//input.BestMode = 5;
 		}
@@ -965,7 +935,7 @@ namespace Mode5 {
 			{
 				input.Error.Total = error - denoiseStep;
 
-				input.BestColor0 = mc;
+				input.BestColor0 = _mm_cvtepu8_epi16(mc);
 				input.BestParameter = rotation;
 				input.BestMode = 5;
 
