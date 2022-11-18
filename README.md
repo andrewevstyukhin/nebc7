@@ -65,7 +65,7 @@ Let's try the soup from https://cbloomrants.blogspot.com/2020/06/oodle-texture-s
 
     Bc7Compress.exe /nomask /noflip mysoup1024.png mysoup1024-stepping.ktx /debug mysoup1024-stepping.png
       Image 1024x1024, Texture 1024x1024
-        Compressed 65536 blocks, elapsed 380 ms, throughput 2.759 Mpx/s
+        Compressed 65536 blocks, elapsed 345 ms, throughput 3.039 Mpx/s
           Whole A
           SubTexture RGB qMSE = 1.6, qPSNR = 46.097026, wSSIM_4x4 = 0.99034363
 
@@ -78,7 +78,7 @@ Let's try the soup from https://cbloomrants.blogspot.com/2020/06/oodle-texture-s
 
     Bc7Compress.exe /nomask /noflip mysoup1024.png mysoup1024-mode6index2.ktx /debug mysoup1024-mode6index2.png
       Image 1024x1024, Texture 1024x1024
-        Compressed 65536 blocks, elapsed 386 ms, throughput 2.716 Mpx/s
+        Compressed 65536 blocks, elapsed 350 ms, throughput 2.995 Mpx/s
           Whole A
           SubTexture RGB qMSE = 2.1, qPSNR = 44.949510, wSSIM_4x4 = 0.98476649
 
@@ -91,7 +91,7 @@ Then check all modes with BC7Ltest.png from https://code.google.com/archive/p/nv
 
     Bc7Compress.exe /nomask /noflip BC7Ltest.png BC7Ltest.ktx /debug output.png
       Image 152x152, Texture 152x152
-        Compressed 1444 blocks, elapsed 24 ms, throughput 0.962 Mpx/s
+        Compressed 1444 blocks, elapsed 17 ms, throughput 1.359 Mpx/s
           SubTexture A qMSE = 0.0, qPSNR = 69.026097, SSIM_4x4 = 0.99997865
           SubTexture RGB qMSE = 0.6, qPSNR = 50.687018, wSSIM_4x4 = 0.99964438
 
@@ -102,7 +102,7 @@ And finally compress an interesting image https://github.com/castano/image-datas
 
     Bc7Compress.exe /nomask /noflip frymire.png frymire.ktx /debug output.png
       Image 1118x1105, Texture 1120x1108
-        Compressed 77560 blocks, elapsed 73 ms, throughput 16.999 Mpx/s
+        Compressed 77560 blocks, elapsed 69 ms, throughput 17.984 Mpx/s
           Whole A
           SubTexture RGB qMSE = 0.6, qPSNR = 50.594453, wSSIM_4x4 = 0.97119160
 
@@ -112,7 +112,7 @@ For non-production purposes we can apply a "draft" mode on earlily saved https:/
 
     Bc7Compress.exe /draft /nomask /noflip 8192.png 8192.ktx /debug output.png
       Image 8192x8192, Texture 8192x8192
-        Compressed 4194304 blocks, elapsed 295 ms, throughput 227.487 Mpx/s
+        Compressed 4194304 blocks, elapsed 282 ms, throughput 237.974 Mpx/s
           Whole A
           SubTexture RGB qMSE = 0.9, qPSNR = 48.734921, wSSIM_4x4 = 0.98443459
 

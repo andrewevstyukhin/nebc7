@@ -944,8 +944,7 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 		__m128i mpacked = _mm_load_si128(&area.DataMask_I16[i]);
 		__m256i vpixel = _mm256_broadcastq_epi64(mpacked);
 
-		__m256i vbottom = _mm256_set1_epi32(kBlockMaximalColorAlphaError);
-
+		__m256i vbottom;
 		if constexpr (M == 16)
 		{
 			__m256i vx = _mm256_load_si256((const __m256i*)state.Values_I16);
@@ -1013,7 +1012,7 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 			vxx = _mm256_blend_epi32(vxx, vyy, 0xAA);
 			vzz = _mm256_blend_epi32(vzz, vww, 0xAA);
 
-			vbottom = _mm256_blendv_epi8(vbottom, vx, _mm256_cmpgt_epi64(vbottom, vx));
+			vbottom = vx;
 			vbottom = _mm256_blendv_epi8(vbottom, vz, _mm256_cmpgt_epi64(vbottom, vz));
 			vbottom = _mm256_blendv_epi8(vbottom, vxx, _mm256_cmpgt_epi64(vbottom, vxx));
 			vbottom = _mm256_blendv_epi8(vbottom, vzz, _mm256_cmpgt_epi64(vbottom, vzz));
@@ -1064,7 +1063,7 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 			vx = _mm256_blend_epi32(vx, vy, 0xAA);
 			vz = _mm256_blend_epi32(vz, vw, 0xAA);
 
-			vbottom = _mm256_blendv_epi8(vbottom, vx, _mm256_cmpgt_epi64(vbottom, vx));
+			vbottom = vx;
 			vbottom = _mm256_blendv_epi8(vbottom, vz, _mm256_cmpgt_epi64(vbottom, vz));
 
 			_mm256_store_si256((__m256i*)errors, vx);
@@ -1098,7 +1097,7 @@ INLINED int ComputeSubsetTable(const Area& area, const __m128i mweights, Modulat
 
 			vx = _mm256_blend_epi32(vx, vy, 0xAA);
 
-			vbottom = _mm256_blendv_epi8(vbottom, vx, _mm256_cmpgt_epi64(vbottom, vx));
+			vbottom = vx;
 
 			_mm256_store_si256((__m256i*)errors, vx);
 		}

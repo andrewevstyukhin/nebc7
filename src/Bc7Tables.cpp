@@ -814,18 +814,18 @@ void InitWeights(bool linearData) noexcept
 	mweights16 = _mm_insert_epi16(mweights16, gWeightBlue, 3);
 	mweights16 = _mm_unpacklo_epi64(mweights16, mweights16);
 
-	_mm_store_si128(&gWeights32, _mm_unpacklo_epi16(mweights16, _mm_setzero_si128()));
+	_mm_store_si128(&gWeights32, _mm_cvtepu16_epi32(mweights16));
 	_mm_store_si128(&gWeightsAGRB, mweights16);
 	_mm_store_si128(&gWeightsAGR, _mm_and_si128(_mm_set_epi16(0, -1, -1, -1, 0, -1, -1, -1), mweights16));
 	_mm_store_si128(&gWeightsAGB, _mm_and_si128(_mm_set_epi16(-1, 0, -1, -1, -1, 0, -1, -1), mweights16));
 	_mm_store_si128(&gWeightsAG, _mm_and_si128(_mm_set_epi16(0, 0, -1, -1, 0, 0, -1, -1), mweights16));
 	_mm_store_si128(&gWeightsAR, _mm_and_si128(_mm_set_epi16(0, -1, 0, -1, 0, -1, 0, -1), mweights16));
 	_mm_store_si128(&gWeightsAGAG, _mm_shuffle_epi32(mweights16, 0));
-	_mm_store_si128(&gWeightsARAR, _mm_shufflehi_epi16(_mm_shufflelo_epi16(mweights16, _MM_SHUFFLE(2, 0, 2, 0)), _MM_SHUFFLE(2, 0, 2, 0)));
+	_mm_store_si128(&gWeightsARAR, _mm_shuffle_epi32(_mm_shufflelo_epi16(mweights16, _MM_SHUFFLE(2, 0, 2, 0)), 0));
 
 	_mm_store_si128(&gWeightsGRB, _mm_and_si128(_mm_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0), mweights16));
-	_mm_store_si128(&gWeightsGRGR, _mm_shufflehi_epi16(_mm_shufflelo_epi16(mweights16, _MM_SHUFFLE(2, 1, 2, 1)), _MM_SHUFFLE(2, 1, 2, 1)));
-	_mm_store_si128(&gWeightsGBGB, _mm_shufflehi_epi16(_mm_shufflelo_epi16(mweights16, _MM_SHUFFLE(3, 1, 3, 1)), _MM_SHUFFLE(3, 1, 3, 1)));
+	_mm_store_si128(&gWeightsGRGR, _mm_shuffle_epi32(_mm_shufflelo_epi16(mweights16, _MM_SHUFFLE(2, 1, 2, 1)), 0));
+	_mm_store_si128(&gWeightsGBGB, _mm_shuffle_epi32(_mm_shufflelo_epi16(mweights16, _MM_SHUFFLE(3, 1, 3, 1)), 0));
 
 #if !defined(OPTION_LIBRARY)
 	if (linearData)
