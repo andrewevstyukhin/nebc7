@@ -638,9 +638,44 @@ static INLINED int ComputeOpaqueSubsetTable3(const Area& area, __m128i mc, uint6
 {
 	mc = _mm_or_si128(mc, _mm_set_epi16(0, 0, 0, 0, 0, 0, 255, 255));
 
-	const __m128i mhalf = _mm_set1_epi16(32);
-
 	mc = _mm_packus_epi16(mc, mc);
+
+	Modulations state;
+#if defined(OPTION_AVX512)
+	const __m512i whalf = _mm512_set1_epi16(32);
+
+	__m512i wc = _mm512_broadcastq_epi64(mc);
+
+	__m512i wt = *(const __m512i*)gTableInterpolate3_U8;
+
+	wt = _mm512_maddubs_epi16(wc, wt);
+
+	wt = _mm512_add_epi16(wt, whalf);
+
+	wt = _mm512_srli_epi16(wt, 6);
+
+	_mm512_store_epi32((__m256i*)state.Values_I16, wt);
+#elif defined(OPTION_AVX2)
+	const __m256i vhalf = _mm256_set1_epi16(32);
+
+	__m256i vc = _mm256_broadcastq_epi64(mc);
+
+	__m256i vt0 = *(const __m256i*)&gTableInterpolate3_U8[0];
+	__m256i vt1 = *(const __m256i*)&gTableInterpolate3_U8[2];
+
+	vt0 = _mm256_maddubs_epi16(vc, vt0);
+	vt1 = _mm256_maddubs_epi16(vc, vt1);
+
+	vt0 = _mm256_add_epi16(vt0, vhalf);
+	vt1 = _mm256_add_epi16(vt1, vhalf);
+
+	vt0 = _mm256_srli_epi16(vt0, 6);
+	vt1 = _mm256_srli_epi16(vt1, 6);
+
+	_mm256_store_si256((__m256i*)state.Values_I16, vt0);
+	_mm256_store_si256((__m256i*)&state.Values_I16[4], vt1);
+#else
+	const __m128i mhalf = _mm_set1_epi16(32);
 
 	__m128i mtx = gTableInterpolate3_U8[0];
 	__m128i mty = gTableInterpolate3_U8[1];
@@ -662,11 +697,11 @@ static INLINED int ComputeOpaqueSubsetTable3(const Area& area, __m128i mc, uint6
 	mtz = _mm_srli_epi16(mtz, 6);
 	mtw = _mm_srli_epi16(mtw, 6);
 
-	Modulations state;
-	_mm_store_si128((__m128i*)&state.Values_I16[0], mtx);
+	_mm_store_si128((__m128i*)state.Values_I16, mtx);
 	_mm_store_si128((__m128i*)&state.Values_I16[2], mty);
 	_mm_store_si128((__m128i*)&state.Values_I16[4], mtz);
 	_mm_store_si128((__m128i*)&state.Values_I16[6], mtw);
+#endif
 
 	int error = ComputeSubsetTable3(area, gWeightsAGRB, state);
 

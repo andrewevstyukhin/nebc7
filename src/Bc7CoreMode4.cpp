@@ -869,17 +869,37 @@ namespace Mode4 {
 	static INLINED BlockError ComputeSubsetTable23(const Area& area, __m128i mc, uint64_t& indices2, uint64_t& indices3, const int rotation) noexcept
 	{
 		const __m128i mrot = GetRotationShuffleNarrow(rotation);
-		const __m128i mhalf = _mm_set1_epi16(32);
 
 		mc = _mm_packus_epi16(mc, mc);
 
 		const __m128i mmask3 = _mm_shuffle_epi8(_mm_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0), mrot);
 
 		mc = _mm_shuffle_epi8(mc, mrot);
+#if defined(OPTION_AVX2)
+		const __m256i vhalf = _mm256_set1_epi16(32);
+
+		__m256i vc = _mm256_broadcastq_epi64(mc);
+
+		const __m256i vmask3 = _mm256_broadcastq_epi64(mmask3);
+#else
+		const __m128i mhalf = _mm_set1_epi16(32);
+#endif
 
 		int errorAlpha = 0;
 		int error3;
 		{
+			Modulations state3;
+#if defined(OPTION_AVX2)
+			__m256i vt = *(const __m256i*)gTableInterpolate2_U8;
+
+			vt = _mm256_maddubs_epi16(vc, vt);
+
+			vt = _mm256_add_epi16(vt, vhalf);
+
+			vt = _mm256_srli_epi16(vt, 6);
+
+			_mm256_store_si256((__m256i*)state3.Values_I16, _mm256_and_si256(vmask3, vt));
+#else
 			__m128i mtx = gTableInterpolate2_U8[0];
 			__m128i mty = gTableInterpolate2_U8[1];
 
@@ -892,9 +912,9 @@ namespace Mode4 {
 			mtx = _mm_srli_epi16(mtx, 6);
 			mty = _mm_srli_epi16(mty, 6);
 
-			Modulations state3;
-			_mm_store_si128((__m128i*)&state3.Values_I16[0], _mm_and_si128(mmask3, mtx));
+			_mm_store_si128((__m128i*)state3.Values_I16, _mm_and_si128(mmask3, mtx));
 			_mm_store_si128((__m128i*)&state3.Values_I16[2], _mm_and_si128(mmask3, mty));
+#endif
 
 			const __m128i mweights3 = _mm_and_si128(mmask3, gWeightsAGRB);
 
@@ -929,6 +949,23 @@ namespace Mode4 {
 
 		int error1;
 		{
+			Modulations state1;
+#if defined(OPTION_AVX2)
+			__m256i vt0 = *(const __m256i*)&gTableInterpolate3_U8[0];
+			__m256i vt1 = *(const __m256i*)&gTableInterpolate3_U8[2];
+
+			vt0 = _mm256_maddubs_epi16(vc, vt0);
+			vt1 = _mm256_maddubs_epi16(vc, vt1);
+
+			vt0 = _mm256_add_epi16(vt0, vhalf);
+			vt1 = _mm256_add_epi16(vt1, vhalf);
+
+			vt0 = _mm256_srli_epi16(vt0, 6);
+			vt1 = _mm256_srli_epi16(vt1, 6);
+
+			_mm256_store_si256((__m256i*)state1.Values_I16, _mm256_andnot_si256(vmask3, vt0));
+			_mm256_store_si256((__m256i*)&state1.Values_I16[4], _mm256_andnot_si256(vmask3, vt1));
+#else
 			__m128i mtx = gTableInterpolate3_U8[0];
 			__m128i mty = gTableInterpolate3_U8[1];
 			__m128i mtz = gTableInterpolate3_U8[2];
@@ -949,11 +986,11 @@ namespace Mode4 {
 			mtz = _mm_srli_epi16(mtz, 6);
 			mtw = _mm_srli_epi16(mtw, 6);
 
-			Modulations state1;
-			_mm_store_si128((__m128i*)&state1.Values_I16[0], _mm_andnot_si128(mmask3, mtx));
+			_mm_store_si128((__m128i*)state1.Values_I16, _mm_andnot_si128(mmask3, mtx));
 			_mm_store_si128((__m128i*)&state1.Values_I16[2], _mm_andnot_si128(mmask3, mty));
 			_mm_store_si128((__m128i*)&state1.Values_I16[4], _mm_andnot_si128(mmask3, mtz));
 			_mm_store_si128((__m128i*)&state1.Values_I16[6], _mm_andnot_si128(mmask3, mtw));
+#endif
 
 			const __m128i mweights1 = _mm_andnot_si128(mmask3, gWeightsAGRB);
 
@@ -992,17 +1029,42 @@ namespace Mode4 {
 	static INLINED BlockError ComputeSubsetTable32(const Area& area, __m128i mc, uint64_t& indices2, uint64_t& indices3, const int rotation) noexcept
 	{
 		const __m128i mrot = GetRotationShuffleNarrow(rotation);
-		const __m128i mhalf = _mm_set1_epi16(32);
 
 		mc = _mm_packus_epi16(mc, mc);
 
 		const __m128i mmask3 = _mm_shuffle_epi8(_mm_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0), mrot);
 
 		mc = _mm_shuffle_epi8(mc, mrot);
+#if defined(OPTION_AVX2)
+		const __m256i vhalf = _mm256_set1_epi16(32);
+
+		__m256i vc = _mm256_broadcastq_epi64(mc);
+
+		const __m256i vmask3 = _mm256_broadcastq_epi64(mmask3);
+#else
+		const __m128i mhalf = _mm_set1_epi16(32);
+#endif
 
 		int errorAlpha = 0;
 		int error3;
 		{
+			Modulations state3;
+#if defined(OPTION_AVX2)
+			__m256i vt0 = *(const __m256i*)&gTableInterpolate3_U8[0];
+			__m256i vt1 = *(const __m256i*)&gTableInterpolate3_U8[2];
+
+			vt0 = _mm256_maddubs_epi16(vc, vt0);
+			vt1 = _mm256_maddubs_epi16(vc, vt1);
+
+			vt0 = _mm256_add_epi16(vt0, vhalf);
+			vt1 = _mm256_add_epi16(vt1, vhalf);
+
+			vt0 = _mm256_srli_epi16(vt0, 6);
+			vt1 = _mm256_srli_epi16(vt1, 6);
+
+			_mm256_store_si256((__m256i*)state3.Values_I16, _mm256_and_si256(vmask3, vt0));
+			_mm256_store_si256((__m256i*)&state3.Values_I16[4], _mm256_and_si256(vmask3, vt1));
+#else
 			__m128i mtx = gTableInterpolate3_U8[0];
 			__m128i mty = gTableInterpolate3_U8[1];
 			__m128i mtz = gTableInterpolate3_U8[2];
@@ -1023,11 +1085,11 @@ namespace Mode4 {
 			mtz = _mm_srli_epi16(mtz, 6);
 			mtw = _mm_srli_epi16(mtw, 6);
 
-			Modulations state3;
-			_mm_store_si128((__m128i*)&state3.Values_I16[0], _mm_and_si128(mmask3, mtx));
+			_mm_store_si128((__m128i*)state3.Values_I16, _mm_and_si128(mmask3, mtx));
 			_mm_store_si128((__m128i*)&state3.Values_I16[2], _mm_and_si128(mmask3, mty));
 			_mm_store_si128((__m128i*)&state3.Values_I16[4], _mm_and_si128(mmask3, mtz));
 			_mm_store_si128((__m128i*)&state3.Values_I16[6], _mm_and_si128(mmask3, mtw));
+#endif
 
 			const __m128i mweights3 = _mm_and_si128(mmask3, gWeightsAGRB);
 
@@ -1062,6 +1124,18 @@ namespace Mode4 {
 
 		int error1;
 		{
+			Modulations state1;
+#if defined(OPTION_AVX2)
+			__m256i vt = *(const __m256i*)gTableInterpolate2_U8;
+
+			vt = _mm256_maddubs_epi16(vc, vt);
+
+			vt = _mm256_add_epi16(vt, vhalf);
+
+			vt = _mm256_srli_epi16(vt, 6);
+
+			_mm256_store_si256((__m256i*)state1.Values_I16, _mm256_andnot_si256(vmask3, vt));
+#else
 			__m128i mtx = gTableInterpolate2_U8[0];
 			__m128i mty = gTableInterpolate2_U8[1];
 
@@ -1074,9 +1148,9 @@ namespace Mode4 {
 			mtx = _mm_srli_epi16(mtx, 6);
 			mty = _mm_srli_epi16(mty, 6);
 
-			Modulations state1;
-			_mm_store_si128((__m128i*)&state1.Values_I16[0], _mm_andnot_si128(mmask3, mtx));
+			_mm_store_si128((__m128i*)state1.Values_I16, _mm_andnot_si128(mmask3, mtx));
 			_mm_store_si128((__m128i*)&state1.Values_I16[2], _mm_andnot_si128(mmask3, mty));
+#endif
 
 			const __m128i mweights1 = _mm_andnot_si128(mmask3, gWeightsAGRB);
 

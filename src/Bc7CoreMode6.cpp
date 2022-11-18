@@ -932,9 +932,59 @@ namespace Mode6 {
 
 	static INLINED BlockError ComputeSubsetTable4(const Area& area, __m128i mc, uint64_t& indices) noexcept
 	{
-		const __m128i mhalf = _mm_set1_epi16(32);
-
 		mc = _mm_packus_epi16(mc, mc);
+
+		Modulations state;
+#if defined(OPTION_AVX512)
+		const __m512i whalf = _mm512_set1_epi16(32);
+
+		__m512i wc = _mm512_broadcastq_epi64(mc);
+
+		__m512i wt0 = *(const __m512i*)&gTableInterpolate4_U8[0];
+		__m512i wt1 = *(const __m512i*)&gTableInterpolate4_U8[4];
+
+		wt0 = _mm512_maddubs_epi16(wc, wt0);
+		wt1 = _mm512_maddubs_epi16(wc, wt1);
+
+		wt0 = _mm512_add_epi16(wt0, whalf);
+		wt1 = _mm512_add_epi16(wt1, whalf);
+
+		wt0 = _mm512_srli_epi16(wt0, 6);
+		wt1 = _mm512_srli_epi16(wt1, 6);
+
+		_mm512_store_epi32((__m256i*)state.Values_I16, wt0);
+		_mm512_store_epi32((__m256i*)&state.Values_I16[8], wt1);
+#elif defined(OPTION_AVX2)
+		const __m256i vhalf = _mm256_set1_epi16(32);
+
+		__m256i vc = _mm256_broadcastq_epi64(mc);
+
+		__m256i vtx = *(const __m256i*)&gTableInterpolate4_U8[0];
+		__m256i vty = *(const __m256i*)&gTableInterpolate4_U8[2];
+		__m256i vtz = *(const __m256i*)&gTableInterpolate4_U8[4];
+		__m256i vtw = *(const __m256i*)&gTableInterpolate4_U8[6];
+
+		vtx = _mm256_maddubs_epi16(vc, vtx);
+		vty = _mm256_maddubs_epi16(vc, vty);
+		vtz = _mm256_maddubs_epi16(vc, vtz);
+		vtw = _mm256_maddubs_epi16(vc, vtw);
+
+		vtx = _mm256_add_epi16(vtx, vhalf);
+		vty = _mm256_add_epi16(vty, vhalf);
+		vtz = _mm256_add_epi16(vtz, vhalf);
+		vtw = _mm256_add_epi16(vtw, vhalf);
+
+		vtx = _mm256_srli_epi16(vtx, 6);
+		vty = _mm256_srli_epi16(vty, 6);
+		vtz = _mm256_srli_epi16(vtz, 6);
+		vtw = _mm256_srli_epi16(vtw, 6);
+
+		_mm256_store_si256((__m256i*)state.Values_I16, vtx);
+		_mm256_store_si256((__m256i*)&state.Values_I16[4], vty);
+		_mm256_store_si256((__m256i*)&state.Values_I16[8], vtz);
+		_mm256_store_si256((__m256i*)&state.Values_I16[12], vtw);
+#else
+		const __m128i mhalf = _mm_set1_epi16(32);
 
 		__m128i mtx = gTableInterpolate4_U8[0];
 		__m128i mty = gTableInterpolate4_U8[1];
@@ -972,8 +1022,7 @@ namespace Mode6 {
 		mrz = _mm_srli_epi16(mrz, 6);
 		mrw = _mm_srli_epi16(mrw, 6);
 
-		Modulations state;
-		_mm_store_si128((__m128i*)&state.Values_I16[0], mtx);
+		_mm_store_si128((__m128i*)state.Values_I16, mtx);
 		_mm_store_si128((__m128i*)&state.Values_I16[2], mty);
 		_mm_store_si128((__m128i*)&state.Values_I16[4], mtz);
 		_mm_store_si128((__m128i*)&state.Values_I16[6], mtw);
@@ -981,6 +1030,7 @@ namespace Mode6 {
 		_mm_store_si128((__m128i*)&state.Values_I16[10], mry);
 		_mm_store_si128((__m128i*)&state.Values_I16[12], mrz);
 		_mm_store_si128((__m128i*)&state.Values_I16[14], mrw);
+#endif
 
 		int error = ComputeSubsetTable4(area, gWeightsAGRB, state);
 

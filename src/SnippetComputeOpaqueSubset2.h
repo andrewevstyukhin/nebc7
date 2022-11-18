@@ -613,9 +613,25 @@ static INLINED auto ComputeSubsetTable2(const Area& area, __m128i mc, uint64_t& 
 		mc = _mm_or_si128(mc, _mm_set_epi16(0, 0, 0, 0, 0, 0, 255, 255));
 	}
 
-	const __m128i mhalf = _mm_set1_epi16(32);
-
 	mc = _mm_packus_epi16(mc, mc);
+
+	Modulations state;
+#if defined(OPTION_AVX2)
+	const __m256i vhalf = _mm256_set1_epi16(32);
+
+	__m256i vc = _mm256_broadcastq_epi64(mc);
+
+	__m256i vt = *(const __m256i*)gTableInterpolate2_U8;
+
+	vt = _mm256_maddubs_epi16(vc, vt);
+
+	vt = _mm256_add_epi16(vt, vhalf);
+
+	vt = _mm256_srli_epi16(vt, 6);
+
+	_mm256_store_si256((__m256i*)state.Values_I16, vt);
+#else
+	const __m128i mhalf = _mm_set1_epi16(32);
 
 	__m128i mtx = gTableInterpolate2_U8[0];
 	__m128i mty = gTableInterpolate2_U8[1];
@@ -629,9 +645,9 @@ static INLINED auto ComputeSubsetTable2(const Area& area, __m128i mc, uint64_t& 
 	mtx = _mm_srli_epi16(mtx, 6);
 	mty = _mm_srli_epi16(mty, 6);
 
-	Modulations state;
-	_mm_store_si128((__m128i*)&state.Values_I16[0], mtx);
+	_mm_store_si128((__m128i*)state.Values_I16, mtx);
 	_mm_store_si128((__m128i*)&state.Values_I16[2], mty);
+#endif
 
 	int error = ComputeSubsetTable2(area, gWeightsAGRB, state);
 
