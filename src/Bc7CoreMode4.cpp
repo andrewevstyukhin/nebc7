@@ -1711,7 +1711,7 @@ namespace Mode4 {
 		}
 	};
 
-	static INLINED int CompressSubset(const Area& area, __m128i& mc, int water, const int rotation)
+	static INLINED int CompressSubset(const Area& area, __m128i& mc, int water, const int rotation) noexcept
 	{
 		if (rotation & 4)
 		{

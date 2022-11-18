@@ -1291,7 +1291,7 @@ namespace Mode6 {
 		}
 	};
 
-	static INLINED int CompressSubset(const Area& area, __m128i& mc, int water)
+	static INLINED int CompressSubset(const Area& area, __m128i& mc, int water) noexcept
 	{
 		Subset subset3;
 		if (subset3.InitLevels<0x0101>(area, water))

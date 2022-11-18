@@ -864,7 +864,7 @@ namespace Mode5 {
 		}
 	};
 
-	static INLINED int CompressSubset(const Area& area, __m128i& mc, int water, const int rotation)
+	static INLINED int CompressSubset(const Area& area, __m128i& mc, int water, const int rotation) noexcept
 	{
 		Subset subset;
 		if (subset.InitLevels(area, water, rotation))
@@ -923,7 +923,7 @@ namespace Mode5 {
 		{
 			const int rotation = gRotationsMode5[rotationIndex];
 
-			if ((input.PersonalMode == 5) && (input.PersonalParameter == rotation))
+			if ((input.PersonalMode == 5) && (input.PersonalParameter == static_cast<uint32_t>(rotation)))
 				continue;
 
 			__m128i mc = _mm_setzero_si128();
