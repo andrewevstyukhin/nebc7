@@ -221,7 +221,7 @@ public:
 			NodeShort* sorted = nodes1;
 			if (int nodesCount = int(nodesPtr - sorted); nodesCount)
 			{
-				sorted = radix_sort(sorted, nodes2, static_cast<uint32_t>(nodesCount));
+				sorted = radix_sort(sorted, nodes2, static_cast<uint32_t>(nodesCount), MaxSize);
 
 				MinErr = (sorted[0].ColorError >> 16) * weight;
 				Count = Min(nodesCount, MaxSize);

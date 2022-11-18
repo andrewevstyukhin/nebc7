@@ -174,7 +174,7 @@ public:
 		{
 			if (nodesCount)
 			{
-				sorted = radix_sort(sorted, nodes2, (uint32_t)nodesCount);
+				sorted = radix_sort(sorted, nodes2, (uint32_t)nodesCount, MaxSize);
 
 				MinErr = (sorted[0].ColorError >> 16) * weight;
 				Count = Min(nodesCount, MaxSize);

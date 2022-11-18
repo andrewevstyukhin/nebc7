@@ -138,8 +138,8 @@ void AreaReduceTable2(const Area& area, __m128i& mc, uint64_t& indices) noexcept
 void AreaReduceTable3(const Area& area, __m128i& mc, uint64_t& indices) noexcept;
 void AreaReduceTable4(__m128i& mc, uint64_t& indices) noexcept;
 
-NOTINLINED Node* radix_sort(Node* input, Node* work, size_t N) noexcept;
-NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) noexcept;
+NOTINLINED void radix_sort_partitions(Node* input, Node* work, size_t N) noexcept;
+NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N, size_t MaxSize) noexcept;
 
 NOTINLINED int ComputeSubsetTable2(const Area& area, const __m128i mweights, Modulations& state) noexcept;
 NOTINLINED int ComputeSubsetTable3(const Area& area, const __m128i mweights, Modulations& state) noexcept;

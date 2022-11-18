@@ -561,7 +561,7 @@ void AreaReduceTable4(__m128i& mc, uint64_t& indices) noexcept
 	}
 }
 
-NOTINLINED Node* radix_sort(Node* input, Node* work, size_t N) noexcept
+NOTINLINED void radix_sort_partitions(Node* input, Node* work, size_t N) noexcept
 {
 	constexpr size_t radix = 7;
 	constexpr size_t bucketCount = 1 << radix;
@@ -612,10 +612,13 @@ NOTINLINED Node* radix_sort(Node* input, Node* work, size_t N) noexcept
 		Node* C = A; A = B; B = C;
 	}
 
-	return A;
+	if (A != input)
+	{
+		memcpy(input, work, sizeof(Node) * N);
+	}
 }
 
-NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) noexcept
+NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N, size_t MaxSize) noexcept
 {
 	constexpr size_t radix = 6;
 	constexpr size_t bucketCount = 1 << radix;
@@ -649,7 +652,61 @@ NOTINLINED NodeShort* radix_sort(NodeShort* input, NodeShort* work, size_t N) no
 		}
 	}
 
-	for (size_t shift = 16; shift < 32; shift += radix)
+	size_t maxShift = 32 - radix;
+	if (N > MaxSize)
+	{
+#if defined(OPTION_AVX2)
+		maxShift -= _lzcnt_u32(any_error | (1u << (16 + radix - 1)));
+#else
+		maxShift = 16;
+		for (uint32_t v = (any_error >> (maxShift + radix)); v != 0; v >>= 1)
+		{
+			maxShift++;
+		}
+#endif
+
+		for (size_t i = 0; i < bucketCount; i++)
+		{
+			counts[i] = 0;
+		}
+
+		for (size_t i = 0; i < N; i++)
+		{
+			size_t value = A[i].ColorError;
+			counts[value >> maxShift]++;
+		}
+
+		size_t water = 0;
+		uint32_t total = 0;
+		do
+		{
+			uint32_t oldCount = counts[water];
+			counts[water++] = total;
+			total += oldCount;
+		} while (total < static_cast<uint32_t>(MaxSize));
+
+		if (total < N)
+		{
+			size_t w = 0;
+			uint32_t top = static_cast<uint32_t>(water) << maxShift;
+			for (size_t i = 0; i < N; i++)
+			{
+				NodeShort val = A[i];
+				A[w] = val;
+				w += val.ColorError < top;
+			}
+			N = w;
+
+#if defined(OPTION_AVX2)
+			maxShift = 32 - radix;
+			uint32_t zeroes = _lzcnt_u32((top - 1) | (1u << (16 + radix - 1)));
+			maxShift -= zeroes;
+			any_error &= ~0u >> zeroes;
+#endif
+		}
+	}
+
+	for (size_t shift = 16; shift < maxShift + radix; shift += radix)
 	{
 		if (((any_error >> shift) & bucketMask) == 0)
 			continue;

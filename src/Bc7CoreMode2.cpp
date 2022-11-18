@@ -502,10 +502,7 @@ namespace Mode2 {
 
 		{
 			Node order2[64];
-			if (radix_sort(order, order2, partitionsCount) == order2)
-			{
-				memcpy(order, order2, sizeof(Node) * partitionsCount);
-			}
+			radix_sort_partitions(order, order2, partitionsCount);
 		}
 
 		for (size_t i = 0; i < partitionsCount; i++)
