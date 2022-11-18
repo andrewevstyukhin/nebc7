@@ -13,7 +13,6 @@ static INLINED int ComputeSubsetError3(const Area& area, __m128i mc, const __m12
 
 	const __m512i whalf = _mm512_set1_epi16(32);
 
-	mc = _mm_packus_epi16(mc, mc);
 	__m512i wc = _mm512_broadcastq_epi64(mc);
 
 	__m512i wt = *(const __m512i*)gTableInterpolate3_U8;
@@ -106,7 +105,6 @@ done:
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
 
-	mc = _mm_packus_epi16(mc, mc);
 	__m256i vc = _mm256_broadcastq_epi64(mc);
 
 	__m256i vt0 = *(const __m256i*)&gTableInterpolate3_U8[0];
@@ -222,7 +220,7 @@ done:
 #else
 	const __m128i mhalf = _mm_set1_epi16(32);
 
-	mc = _mm_packus_epi16(mc, mc);
+	mc = _mm_unpacklo_epi64(mc, mc);
 
 	__m128i mtx = gTableInterpolate3_U8[0];
 	__m128i mty = gTableInterpolate3_U8[1];
@@ -305,13 +303,13 @@ static INLINED int ComputeSubsetError3Pair(const Area& area, __m128i mc, const _
 {
 	__m128i merrorBlock = _mm_setzero_si128();
 
+	mc = _mm_shufflelo_epi16(mc, shuffle);
+
 #if defined(OPTION_AVX512)
 	const __m512i wweights = _mm512_broadcastq_epi64(mweights);
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
 
-	mc = _mm_shuffle_epi32(mc, shuffle);
-	mc = _mm_packus_epi16(mc, mc);
 	__m256i vc = _mm256_broadcastq_epi64(mc);
 
 	__m256i vt = *(const __m256i*)gTableInterpolate3GR_U8;
@@ -438,8 +436,6 @@ done:
 
 	const __m256i vhalf = _mm256_set1_epi16(32);
 
-	mc = _mm_shuffle_epi32(mc, shuffle);
-	mc = _mm_packus_epi16(mc, mc);
 	__m256i vc = _mm256_broadcastq_epi64(mc);
 
 	__m256i vt = *(const __m256i*)gTableInterpolate3GR_U8;
@@ -583,8 +579,7 @@ done:
 #else
 	const __m128i mhalf = _mm_set1_epi16(32);
 
-	mc = _mm_shuffle_epi32(mc, shuffle);
-	mc = _mm_packus_epi16(mc, mc);
+	mc = _mm_unpacklo_epi64(mc, mc);
 
 	__m128i mtx = gTableInterpolate3GR_U8[0];
 	__m128i mty = gTableInterpolate3GR_U8[1];

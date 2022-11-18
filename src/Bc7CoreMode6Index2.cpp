@@ -101,7 +101,7 @@ namespace Mode6Index2 {
 		if (ea >= water)
 			return water;
 
-		return ComputeSubsetError2(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
+		return ComputeSubsetError2(area, _mm_packus_epi16(mc, mc), gWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
 	}
 
 	void CompressBlockFast(Cell& input) noexcept
@@ -212,7 +212,6 @@ namespace Mode6Index2 {
 						__m128i mc = _mm_setzero_si128();
 						mc = _mm_insert_epi16(mc, c0, 0);
 						mc = _mm_insert_epi16(mc, c1, 1);
-						mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError2AG++;
@@ -243,7 +242,6 @@ namespace Mode6Index2 {
 								__m128i mc = _mm_setzero_si128();
 								mc = _mm_insert_epi16(mc, c0, 0);
 								mc = _mm_insert_epi16(mc, c2, 2);
-								mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError2AR++;
@@ -260,7 +258,6 @@ namespace Mode6Index2 {
 							mc = _mm_insert_epi16(mc, c0, 0);
 							mc = _mm_insert_epi16(mc, c1, 1);
 							mc = _mm_insert_epi16(mc, c2, 2);
-							mc = _mm_cvtepu8_epi16(mc);
 
 							if (area.IsOpaque)
 							{
@@ -295,7 +292,6 @@ namespace Mode6Index2 {
 								mc = _mm_insert_epi16(mc, c0, 0);
 								mc = _mm_insert_epi16(mc, c1, 1);
 								mc = _mm_insert_epi16(mc, c3, 3);
-								mc = _mm_cvtepu8_epi16(mc);
 
 								if (area.IsOpaque)
 								{
@@ -321,7 +317,6 @@ namespace Mode6Index2 {
 							mc = _mm_insert_epi16(mc, c1, 1);
 							mc = _mm_insert_epi16(mc, c2, 2);
 							mc = _mm_insert_epi16(mc, c3, 3);
-							mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError2++;
@@ -332,7 +327,7 @@ namespace Mode6Index2 {
 							{
 								water = err;
 
-								best_color = mc;
+								best_color = _mm_cvtepu8_epi16(mc);
 							}
 						}
 					}

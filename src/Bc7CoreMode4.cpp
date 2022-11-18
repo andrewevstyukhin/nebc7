@@ -191,7 +191,6 @@ namespace Mode4 {
 		const __m512i whalf = _mm512_set1_epi16(32);
 		const __m512i wweights = _mm512_shuffle_epi8(_mm512_broadcastq_epi64(mweights), wrot);
 
-		mc = _mm_packus_epi16(mc, mc);
 		__m512i wc = _mm512_broadcastq_epi64(mc);
 
 		const __m512i wmask3 = _mm512_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0);
@@ -287,7 +286,6 @@ namespace Mode4 {
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastq_epi64(mweights), vrot);
 
-		mc = _mm_packus_epi16(mc, mc);
 		__m256i vc = _mm256_broadcastq_epi64(mc);
 
 		const __m256i vmask3 = _mm256_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0);
@@ -382,7 +380,7 @@ namespace Mode4 {
 		const __m128i mhalf = _mm_set1_epi16(32);
 		mweights = _mm_shuffle_epi8(mweights, mrot);
 
-		mc = _mm_packus_epi16(mc, mc);
+		mc = _mm_unpacklo_epi64(mc, mc);
 
 		const __m128i mmask3 = _mm_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0);
 		const __m128i mweights3 = _mm_and_si128(mweights, mmask3);
@@ -529,7 +527,6 @@ namespace Mode4 {
 		const __m512i whalf = _mm512_set1_epi16(32);
 		const __m512i wweights = _mm512_shuffle_epi8(_mm512_broadcastq_epi64(mweights), wrot);
 
-		mc = _mm_packus_epi16(mc, mc);
 		__m512i wc = _mm512_broadcastq_epi64(mc);
 
 		const __m512i wmask3 = _mm512_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0);
@@ -629,7 +626,6 @@ namespace Mode4 {
 		const __m256i vhalf = _mm256_set1_epi16(32);
 		const __m256i vweights = _mm256_shuffle_epi8(_mm256_broadcastq_epi64(mweights), vrot);
 
-		mc = _mm_packus_epi16(mc, mc);
 		__m256i vc = _mm256_broadcastq_epi64(mc);
 
 		const __m256i vmask3 = _mm256_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0, -1, -1, -1, 0);
@@ -728,7 +724,7 @@ namespace Mode4 {
 		const __m128i mhalf = _mm_set1_epi16(32);
 		mweights = _mm_shuffle_epi8(mweights, mrot);
 
-		mc = _mm_packus_epi16(mc, mc);
+		mc = _mm_unpacklo_epi64(mc, mc);
 
 		const __m128i mmask3 = _mm_set_epi16(-1, -1, -1, 0, -1, -1, -1, 0);
 		const __m128i mweights3 = _mm_and_si128(mweights, mmask3);
@@ -1176,14 +1172,14 @@ namespace Mode4 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError32[rotation - 4]++;
 #endif
-			return ComputeSubsetError32(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
+			return ComputeSubsetError32(area, _mm_packus_epi16(mc, mc), gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
 		}
 		else
 		{
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError23[rotation]++;
 #endif
-			return ComputeSubsetError23(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
+			return ComputeSubsetError23(area, _mm_packus_epi16(mc, mc), gWeightsAGRB, _mm_cvtsi32_si128(water), rotation);
 		}
 	}
 
@@ -1333,7 +1329,6 @@ namespace Mode4 {
 						mc = _mm_insert_epi16(mc, cA, 0);
 						mc = _mm_insert_epi16(mc, cG, 1);
 						mc = _mm_shuffle_epi8(mc, mrot);
-						mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError23AG[rotation]++;
@@ -1365,7 +1360,6 @@ namespace Mode4 {
 								mc = _mm_insert_epi16(mc, cA, 0);
 								mc = _mm_insert_epi16(mc, cR, 2);
 								mc = _mm_shuffle_epi8(mc, mrot);
-								mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError23AR[rotation]++;
@@ -1389,7 +1383,6 @@ namespace Mode4 {
 							mc = _mm_insert_epi16(mc, cG, 1);
 							mc = _mm_insert_epi16(mc, cR, 2);
 							mc = _mm_shuffle_epi8(mc, mrot);
-							mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError23AGR[rotation]++;
@@ -1417,7 +1410,6 @@ namespace Mode4 {
 									mc = _mm_insert_epi16(mc, cG, 1);
 									mc = _mm_insert_epi16(mc, cB, 3);
 									mc = _mm_shuffle_epi8(mc, mrot);
-									mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 									gComputeSubsetError23AGB[rotation]++;
@@ -1440,7 +1432,6 @@ namespace Mode4 {
 							mc = _mm_insert_epi16(mc, cR, 2);
 							mc = _mm_insert_epi16(mc, cB, 3);
 							mc = _mm_shuffle_epi8(mc, mrot);
-							mc = _mm_cvtepu8_epi16(mc);
 
 							if constexpr ((rotation == 0) || (rotation == 2))
 							{
@@ -1454,7 +1445,7 @@ namespace Mode4 {
 							{
 								water = eB;
 
-								best_color = mc;
+								best_color = _mm_cvtepu8_epi16(mc);
 							}
 						}
 					}
@@ -1579,7 +1570,6 @@ namespace Mode4 {
 						mc = _mm_insert_epi16(mc, cA, 0);
 						mc = _mm_insert_epi16(mc, cG, 1);
 						mc = _mm_shuffle_epi8(mc, mrot);
-						mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError32AG[rotation]++;
@@ -1611,7 +1601,6 @@ namespace Mode4 {
 								mc = _mm_insert_epi16(mc, cA, 0);
 								mc = _mm_insert_epi16(mc, cR, 2);
 								mc = _mm_shuffle_epi8(mc, mrot);
-								mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError32AR[rotation]++;
@@ -1635,7 +1624,6 @@ namespace Mode4 {
 							mc = _mm_insert_epi16(mc, cG, 1);
 							mc = _mm_insert_epi16(mc, cR, 2);
 							mc = _mm_shuffle_epi8(mc, mrot);
-							mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError32AGR[rotation]++;
@@ -1663,7 +1651,6 @@ namespace Mode4 {
 									mc = _mm_insert_epi16(mc, cG, 1);
 									mc = _mm_insert_epi16(mc, cB, 3);
 									mc = _mm_shuffle_epi8(mc, mrot);
-									mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 									gComputeSubsetError32AGB[rotation]++;
@@ -1686,7 +1673,6 @@ namespace Mode4 {
 							mc = _mm_insert_epi16(mc, cR, 2);
 							mc = _mm_insert_epi16(mc, cB, 3);
 							mc = _mm_shuffle_epi8(mc, mrot);
-							mc = _mm_cvtepu8_epi16(mc);
 
 							if constexpr ((rotation == 0) || (rotation == 2))
 							{
@@ -1700,7 +1686,7 @@ namespace Mode4 {
 							{
 								water = eB;
 
-								best_color = mc;
+								best_color = _mm_cvtepu8_epi16(mc);
 							}
 						}
 					}

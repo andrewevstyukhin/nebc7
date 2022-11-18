@@ -180,7 +180,7 @@ namespace Mode7 {
 		if (ea >= water)
 			return water;
 
-		return ComputeSubsetError2(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
+		return ComputeSubsetError2(area, _mm_packus_epi16(mc, mc), gWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
 	}
 
 	void CompressBlockFast(Cell& input) noexcept
@@ -312,7 +312,6 @@ namespace Mode7 {
 						__m128i mc = _mm_setzero_si128();
 						mc = _mm_insert_epi16(mc, c0, 0);
 						mc = _mm_insert_epi16(mc, c1, 1);
-						mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError2AG++;
@@ -343,7 +342,6 @@ namespace Mode7 {
 								__m128i mc = _mm_setzero_si128();
 								mc = _mm_insert_epi16(mc, c0, 0);
 								mc = _mm_insert_epi16(mc, c2, 2);
-								mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError2AR++;
@@ -360,7 +358,6 @@ namespace Mode7 {
 							mc = _mm_insert_epi16(mc, c0, 0);
 							mc = _mm_insert_epi16(mc, c1, 1);
 							mc = _mm_insert_epi16(mc, c2, 2);
-							mc = _mm_cvtepu8_epi16(mc);
 
 							if (area.IsOpaque)
 							{
@@ -395,7 +392,6 @@ namespace Mode7 {
 								mc = _mm_insert_epi16(mc, c0, 0);
 								mc = _mm_insert_epi16(mc, c1, 1);
 								mc = _mm_insert_epi16(mc, c3, 3);
-								mc = _mm_cvtepu8_epi16(mc);
 
 								if (area.IsOpaque)
 								{
@@ -421,7 +417,6 @@ namespace Mode7 {
 							mc = _mm_insert_epi16(mc, c1, 1);
 							mc = _mm_insert_epi16(mc, c2, 2);
 							mc = _mm_insert_epi16(mc, c3, 3);
-							mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError2++;
@@ -432,7 +427,7 @@ namespace Mode7 {
 							{
 								water = err;
 
-								best_color = mc;
+								best_color = _mm_cvtepu8_epi16(mc);
 							}
 						}
 					}
@@ -514,7 +509,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError2++;
 #endif
-			int water1 = ComputeSubsetError2(area1, mc0, gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalColorAlphaError));
+			int water1 = ComputeSubsetError2(area1, _mm_packus_epi16(mc0, mc0), gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalColorAlphaError));
 			water1 += ComputeSubsetTransparentError2(area1, _mm_extract_epi16(_mm_packus_epi16(mc0, mc0), 0));
 			if (water1)
 			{
@@ -534,7 +529,7 @@ namespace Mode7 {
 #if defined(OPTION_COUNTERS)
 			gComputeSubsetError2++;
 #endif
-			int water2 = ComputeSubsetError2(area2, mc1, gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalColorAlphaError));
+			int water2 = ComputeSubsetError2(area2, _mm_packus_epi16(mc1, mc1), gWeightsAGRB, _mm_cvtsi32_si128(kBlockMaximalColorAlphaError));
 			water2 += ComputeSubsetTransparentError2(area2, _mm_extract_epi16(_mm_packus_epi16(mc1, mc1), 0));
 			if (water2)
 			{

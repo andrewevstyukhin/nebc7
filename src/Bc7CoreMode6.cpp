@@ -136,7 +136,6 @@ namespace Mode6 {
 
 		const __m512i whalf = _mm512_set1_epi16(32);
 
-		mc = _mm_packus_epi16(mc, mc);
 		__m512i wc = _mm512_broadcastq_epi64(mc);
 
 		__m512i wt0 = *(const __m512i*)&gTableInterpolate4_U8[0];
@@ -354,7 +353,6 @@ namespace Mode6 {
 
 		const __m256i vhalf = _mm256_set1_epi16(32);
 
-		mc = _mm_packus_epi16(mc, mc);
 		__m256i vc = _mm256_broadcastq_epi64(mc);
 
 		__m256i vtx = *(const __m256i*)&gTableInterpolate4_U8[0];
@@ -431,7 +429,7 @@ namespace Mode6 {
 #else
 		const __m128i mhalf = _mm_set1_epi16(32);
 
-		mc = _mm_packus_epi16(mc, mc);
+		mc = _mm_unpacklo_epi64(mc, mc);
 
 		__m128i mtx = gTableInterpolate4_U8[0];
 		__m128i mty = gTableInterpolate4_U8[1];
@@ -575,13 +573,13 @@ namespace Mode6 {
 	{
 		__m128i merrorBlock = _mm_setzero_si128();
 
+		mc = _mm_shufflelo_epi16(mc, shuffle);
+
 #if defined(OPTION_AVX512)
 		const __m512i wweights = _mm512_broadcastq_epi64(mweights);
 
 		const __m512i whalf = _mm512_set1_epi16(32);
 
-		mc = _mm_shuffle_epi32(mc, shuffle);
-		mc = _mm_packus_epi16(mc, mc);
 		__m512i wc = _mm512_broadcastq_epi64(mc);
 
 		__m512i wt = *(const __m512i*)gTableInterpolate4GR_U8;
@@ -744,8 +742,6 @@ namespace Mode6 {
 
 		const __m256i vhalf = _mm256_set1_epi16(32);
 
-		mc = _mm_shuffle_epi32(mc, shuffle);
-		mc = _mm_packus_epi16(mc, mc);
 		__m256i vc = _mm256_broadcastq_epi64(mc);
 
 		__m256i vt0 = *(const __m256i*)&gTableInterpolate4GR_U8[0];
@@ -857,8 +853,7 @@ namespace Mode6 {
 #else
 		const __m128i mhalf = _mm_set1_epi16(32);
 
-		mc = _mm_shuffle_epi32(mc, shuffle);
-		mc = _mm_packus_epi16(mc, mc);
+		mc = _mm_unpacklo_epi64(mc, mc);
 
 		__m128i mtx = gTableInterpolate4GR_U8[0];
 		__m128i mty = gTableInterpolate4GR_U8[1];
@@ -1049,7 +1044,7 @@ namespace Mode6 {
 		if (ea >= water)
 			return water;
 
-		return ComputeSubsetError4(area, mc, gWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
+		return ComputeSubsetError4(area, _mm_packus_epi16(mc, mc), gWeightsAGRB, _mm_cvtsi32_si128(water - ea)) + ea;
 	}
 
 	void CompressBlockFast(Cell& input) noexcept
@@ -1160,7 +1155,6 @@ namespace Mode6 {
 						__m128i mc = _mm_setzero_si128();
 						mc = _mm_insert_epi16(mc, c0, 0);
 						mc = _mm_insert_epi16(mc, c1, 1);
-						mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 						gComputeSubsetError4AG++;
@@ -1191,7 +1185,6 @@ namespace Mode6 {
 								__m128i mc = _mm_setzero_si128();
 								mc = _mm_insert_epi16(mc, c0, 0);
 								mc = _mm_insert_epi16(mc, c2, 2);
-								mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 								gComputeSubsetError4AR++;
@@ -1208,7 +1201,6 @@ namespace Mode6 {
 							mc = _mm_insert_epi16(mc, c0, 0);
 							mc = _mm_insert_epi16(mc, c1, 1);
 							mc = _mm_insert_epi16(mc, c2, 2);
-							mc = _mm_cvtepu8_epi16(mc);
 
 							if (area.IsOpaque)
 							{
@@ -1243,7 +1235,6 @@ namespace Mode6 {
 								mc = _mm_insert_epi16(mc, c0, 0);
 								mc = _mm_insert_epi16(mc, c1, 1);
 								mc = _mm_insert_epi16(mc, c3, 3);
-								mc = _mm_cvtepu8_epi16(mc);
 
 								if (area.IsOpaque)
 								{
@@ -1269,7 +1260,6 @@ namespace Mode6 {
 							mc = _mm_insert_epi16(mc, c1, 1);
 							mc = _mm_insert_epi16(mc, c2, 2);
 							mc = _mm_insert_epi16(mc, c3, 3);
-							mc = _mm_cvtepu8_epi16(mc);
 
 #if defined(OPTION_COUNTERS)
 							gComputeSubsetError4++;
@@ -1280,7 +1270,7 @@ namespace Mode6 {
 							{
 								water = err;
 
-								best_color = mc;
+								best_color = _mm_cvtepu8_epi16(mc);
 							}
 						}
 					}
