@@ -16,7 +16,7 @@ It is suitable to use low entropy modes for opaque blocks. Mode 6 has excellent 
 
 Nebc7 sorts nearly all possible endpoint values of each single channel and chooses some good of them. Then exhaustive search tries all selected combinations and reveals the best solution. Sorting provides a surprisingly fast convergence for such slow process.
 
-Modes 7, 1, 3 are memory-bound because of large tables, they partially limited in default working mode. Slow modes can be fully activated by impractical "/slow" command-line switch.
+Modes 7, 1, 3 are memory-bound because of large tables, so they are partially limited in default working mode. Slow modes can be fully activated by impractical "/slow" command-line switch.
 
 For premultiplied alpha it is necessary to specify "/nomask" command-line option. While extruded RGBA images can highly benefit from masking. Switch "/retina" allows future artifact-free scaling by 0.5. Masking gives smaller compressed images and better borders, because masked pixels can have any value.
 
@@ -24,25 +24,29 @@ Many encoders use single metric (RMSE / MSE / PSNR) insensitive to a direction. 
 
 ## Special features
 
-Additional mode 6 with 2-bit index instead of 4-bit gives a significant reduction in size.
+1. The additional mode 6 with a 2-bit index instead of a 4-bit one gives a significant reduction in size.
+
+2. For non-production purposes, the fastest encoder can be used by the "/draft" command-line option. Of course, loading png files will remain a significant bottleneck.
 
 ## Usage
 
-The solution was tested on SSSE3, SSE4.1, AVX, AVX2, AVX-512BW - capable CPUs for Win64 API only.
+The solution was tested on SSSE3, SSE4.1, AVX, AVX2, AVX-512BW - capable CPUs for Win64 API only. It was then successfully expanded onto Linux and macOS with `OPTION_LIBRARY` and `OPTION_PCA` definitions.
 
-`Bc7Compress /nomask /noflip source.png destination.ktx [/debug result.png]`
+* `Bc7Compress /nomask /noflip source.png destination.ktx [/debug result.png]`
+* `Bc7Compress /nomask /noflip source.png destination.ktx [/debug result.png] /draft`
+* `Bc7Compress /data /noflip source.png destination.ktx [/debug result.png]`
 
-I would recommend using AVX2 or AVX-512 for the best performance. See Bc7Mode.h about settings.
+I would recommend using AVX2 or AVX-512 for the best performance. See [Bc7Mode.h](src/Bc7Mode.h) about advanced settings.
 
 ## Customization
 
-The kDenoise and kDenoiseStep constants in Bc7Mode.h define RDO capabilities:
+The kDenoise and kDenoiseStep constants in [Bc7Mode.h](src/Bc7Mode.h) define RDO capabilities:
 
 1. The most performant and compact mode is defined by kDenoise = 1, kDenoiseStep = 3 \* 3.
 2. Generally precise but much slower mode is defined by kDenoise = 0, kDenoiseStep = 0.
 3. Especially for Moon shots (black backround with low light amplitude) I recommend kDenoise = 0, kDenoiseStep = 3 \* 3.
 
-The constants kAlpha, kGreen, kRed, kBlue set weights for channels and depend on the nature of the data.
+The parameters gWeightAlpha, gWeightGreen, gWeightRed, gWeightBlue set weights for channels and depend on the nature of the data.
 
 ## Examples
 
@@ -108,7 +112,7 @@ And finally compress an interesting image https://github.com/castano/image-datas
 
     frymire.7z  313 550
 
-For non-production purposes we can apply a "draft" mode on earlily saved https://bitbucket.org/wolfpld/etcpak/downloads/8192.png:
+For non-production purposes, we can use the fastest encoder for the previously saved https://bitbucket.org/wolfpld/etcpak/downloads/8192.png:
 
     Bc7Compress.exe /draft /nomask /noflip 8192.png 8192.ktx /debug output.png
       Image 8192x8192, Texture 8192x8192
@@ -121,9 +125,19 @@ For non-production purposes we can apply a "draft" mode on earlily saved https:/
 
     8192.7z  31 309 975
 
+and the "Cosmic Cliffs" https://webbtelescope.org/contents/media/images/2022/031/01G77PKB8NKR7S8Z6HBXMYATGJ:
+
+    Bc7Compress.exe /draft /nomask /noflip CosmicCliffs.png CosmicCliffs.ktx /debug output.png
+      Image 14575x8441, Texture 14576x8444
+        Compressed 7692484 blocks, elapsed 710 ms, throughput 173.351 Mpx/s
+          Whole A
+          SubTexture RGB qMSE = 0.6, qPSNR = 50.035373, wSSIM_4x4 = 0.99143002
+
+    CosmicCliffs.7z  50 304 354
+
 ## Copyright
 
-Copyright (c) 2019-2021 Andrew Evstyukhin
+Copyright (c) 2019-2022 Andrew Evstyukhin
 
 Licensed under the MIT License.
 
